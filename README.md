@@ -5,7 +5,7 @@
 - **Matthieu Greiner**
 - **Julien Texeira**
 - **Dylan Barros**
-- **Pierre Louis Chambon**
+- **Pierre-Louis Chambon**
 
 ---
 
