@@ -15,14 +15,14 @@ OBJ = $(SRC:.c=.o)
 INCLUDES = -I$(INC_DIR)
 
 # Options de compilation
-CFLAGS = -Wall -Wextra -std=c11
-
+CFLAGS = -Wall -Wextra -std=c11 -Iinclude -I/usr/local/include/SDL2
+LDFLAGS = -lSDL2main -lSDL2 -lSDL2_image
 # Règle de compilation principale
 all: $(EXEC)
 
 # Création de l'exécutable
 $(EXEC): $(OBJ)
-	$(CC) -o $(EXEC) $(OBJ)
+	$(CC) -o $(EXEC) $(OBJ) $(LDFLAGS)
 
 # Compilation des fichiers objets
 $(SRC_DIR)/%.o: $(SRC_DIR)/%.c
