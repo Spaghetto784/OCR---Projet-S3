@@ -3,7 +3,7 @@
 ## Groupe : **SegFaultless**
 
 - **Matthieu Greiner**
-- **Julien Texeira**
+- **Julien Teixeira**
 - **Dylan Barros**
 - **Pierre-Louis Chambon**
 
