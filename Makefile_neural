@@ -1,0 +1,17 @@
+# Makefile_neural
+
+CC = gcc
+CFLAGS = -Wall -Wextra -Iinclude
+OBJ = src/neural_net.o src/main_neural_net.o
+TARGET = neural_test
+
+all: $(TARGET)
+
+$(TARGET): $(OBJ)
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ) -lm
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJ) $(TARGET)

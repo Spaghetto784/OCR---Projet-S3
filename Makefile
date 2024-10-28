@@ -1,37 +1,18 @@
-# Nom de l'exécutable final
-EXEC = ocr_solver
+CC = gcc
+CFLAGS = -Wall -Wextra -I/usr/include/SDL2 -Iinclude
+SRCS = src/main.c src/load_image.c src/image_processing.c  # Enlève src/preprocessor.c si non utilisé
+OBJS = $(SRCS:.c=.o)
 
-# Compilateur
-CC = cc
+TARGET = bin/image_loader
 
-# Dossiers
-SRC_DIR = src
-INC_DIR = include
-DATA_DIR = data/examples
+all: $(TARGET)
 
-# Fichiers sources et en-têtes
-SRC = $(SRC_DIR)/main.c $(SRC_DIR)/preprocessor.c
-OBJ = $(SRC:.c=.o)
-INCLUDES = -I$(INC_DIR)
+$(TARGET): $(OBJS)
+	mkdir -p bin
+	$(CC) -o $(TARGET) $(OBJS) -lSDL2 -lSDL2_image
 
-# Options de compilation
-CFLAGS = -Wall -Wextra -std=c11 -Iinclude -I/usr/local/include/SDL2
-LDFLAGS = -lSDL2main -lSDL2 -lSDL2_image
-# Règle de compilation principale
-all: $(EXEC)
+%.o: %.c
+	$(CC) -c $< -o $@ $(CFLAGS)
 
-# Création de l'exécutable
-$(EXEC): $(OBJ)
-	$(CC) -o $(EXEC) $(OBJ) $(LDFLAGS)
-
-# Compilation des fichiers objets
-$(SRC_DIR)/%.o: $(SRC_DIR)/%.c
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
-
-# Nettoyage des fichiers objets et de l'exécutable
 clean:
-	rm -f $(OBJ) $(EXEC)
-
-# Exemple d'utilisation avec l'image de niveau 1
-run: $(EXEC)
-	./$(EXEC) $(DATA_DIR)/level_1_image_1.png
+	rm -f $(OBJS) $(TARGET)
