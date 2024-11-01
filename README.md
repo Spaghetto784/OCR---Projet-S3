@@ -1,6 +1,6 @@
 # OCR Word Search Solver
 
-## Groupe : **SegFaultless**
+## Group: **SegFaultless**
 
 - **Matthieu Greiner**
 - **Julien Teixeira**
@@ -9,53 +9,66 @@
 
 ---
 
-## Description du Projet
+## Project Description
 
-L'objectif de ce projet est de développer un logiciel capable de résoudre des grilles de mots cachés à partir d'une image. Le projet utilise la reconnaissance optique de caractères (OCR) pour identifier les lettres dans une grille, puis un algorithme de résolution de grille en C pour rechercher les mots.
+The goal of this project is to develop software capable of solving word search puzzles from an image. The project utilizes Optical Character Recognition (OCR) to identify letters in a grid and then employs a grid-solving algorithm in C to search for words.
 
-Le logiciel prend en entrée une image représentant une grille de mots cachés et renvoie la grille résolue. Cette application combine plusieurs technologies, dont :
-- **Prétraitement d'image** : Conversion des images en niveaux de gris et redressement pour améliorer la qualité des images.
-- **Réseau de neurones** : Reconnaissance des lettres présentes dans la grille à partir des images des lettres.
-- **Solver de grille** : Algorithme en C permettant de rechercher un mot dans une grille et d'afficher sa position.
+The software takes an image representing a word search grid as input and returns the resolved grid. This application combines several technologies, including:
+- **Image Preprocessing**: Converting images to grayscale and straightening them to improve image quality.
+- **Neural Network**: Recognizing letters present in the grid from images of the letters.
+- **Grid Solver**: A C algorithm that searches for a word in a grid and displays its position.
 
-## Utilisation
+## Dependencies
 
-### 1. Clonage du dépôt
-Clonez le dépôt GIT contenant le projet :
+Before compiling the project, ensure you have the necessary dependencies installed:
 
-```bash
-git clone https://github.com/votre-repo.git
-cd OCR-Word-Search-Solver
-```
+### SDL
+- **Ubuntu/Debian**: 
+  ```bash
+  sudo apt-get install libsdl1.2-dev libsdl-image1.2-dev 
+  ```
 
-### 2. Compilation du programme
+## Installation
 
-Le projet contient un fichier `Makefile` pour faciliter la compilation. Pour compiler l'application, exécutez la commande suivante dans le terminal :
+To compile the project, run the following command in the terminal at the root of the repository:
 
 ```bash
 make all
 ```
 
-### 3. Utilisation du Solver en ligne de commande
-Le solver permet de rechercher un mot dans une grille de caractères fournie sous forme de fichier texte. Voici un exemple d'utilisation :
+The project uses a Makefile that allows you to compile and execute different components of the project. Here are the main commands:
+
+To run the solver:
 
 ```bash
-./solver grid.txt horizontal
+make solver
+```
+This generates the solver executable, which allows you to search for words in a grid.
+
+To run the neural network:
+
+``` bash
+make neural
+```
+This compiles and runs tests for the neural network.
+
+To run the main OCR application:
+
+```bash
+make ocr
 ```
 
-Où grid.txt contient la grille à résoudre, et horizontal est le mot à rechercher dans la grille.
 
-Le programme affichera les coordonnées de la première et de la dernière lettre du mot dans la grille, par exemple :
-```bash
-(0,0)(9,0)
-```
-Si le mot n'est pas trouvé, il affichera :
-```bash
-Not Found
-```
+## License
 
-### 4. Nettoyage
-Pour supprimer les fichiers compilés, utilisez la commande suivante :
-```bash
-make clean
-```
+This project is licensed under the MIT License.
+
+### MIT License
+
+Copyright (c) 2024 SegFaultless
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+- The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
