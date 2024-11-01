@@ -9,7 +9,7 @@ void convert_to_grayscale(SDL_Surface* surface) {
         printf("Format d'image non supporté pour la conversion en niveaux de gris.\n");
         return;
     }
-
+    SDL_LockSurface(surface);
     Uint8 r, g, b;
     Uint32 pixel;
     for (int y = 0; y < surface->h; y++) {
@@ -21,6 +21,8 @@ void convert_to_grayscale(SDL_Surface* surface) {
             ((Uint32*)surface->pixels)[y * surface->w + x] = pixel;
         }
     }
+
+    SDL_UnlockSurface(surface);
 }
 
 // Fonction pour charger une image et la convertir en texture
@@ -39,41 +41,50 @@ SDL_Texture* load_image(const char* file_path, SDL_Renderer* renderer) {
     return texture;
 }
 
-SDL_Texture* rotate_image(SDL_Texture* texture, double angle, SDL_Renderer* renderer) {
-    // Créez une surface à partir de la texture
-    SDL_Surface* surface;
-    int w, h;
-    SDL_QueryTexture(texture, NULL, NULL, &w, &h);
-    
-    surface = SDL_CreateRGBSurface(0, w, h, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0);
-    if (!surface) {
+SDL_Surface* rotate_image(SDL_Surface* surface, int angle) {
+    // Convertir l'angle en radians
+    double radians = angle * M_PI / 180.0;
+
+    // Calculer les nouvelles dimensions de la surface
+    int original_width = surface->w;
+    int original_height = surface->h;
+    int new_width = (int)(fabs(original_width * cos(radians)) + fabs(original_height * sin(radians)));
+    int new_height = (int)(fabs(original_width * sin(radians)) + fabs(original_height * cos(radians)));
+
+    // Créer une nouvelle surface avec les dimensions ajustées
+    SDL_Surface* rotated_surface = SDL_CreateRGBSurface(0, new_width, new_height, surface->format->BitsPerPixel,
+                                                        surface->format->Rmask, surface->format->Gmask,
+                                                        surface->format->Bmask, surface->format->Amask);
+    if (!rotated_surface) {
         printf("Erreur lors de la création de la surface : %s\n", SDL_GetError());
         return NULL;
     }
 
-    SDL_RenderReadPixels(renderer, NULL, surface->format->format, surface->pixels, surface->pitch);
+    // Remplir la nouvelle surface avec du noir comme couleur de fond
+    SDL_FillRect(rotated_surface, NULL, SDL_MapRGB(rotated_surface->format, 0, 0, 0));
 
-    // Créez une nouvelle texture pour l'image rotatée
-    SDL_Texture* rotated_texture = SDL_CreateTexture(renderer, surface->format->format, SDL_TEXTUREACCESS_TARGET, h, w);
-    if (!rotated_texture) {
-        printf("Erreur lors de la création de la texture rotatée : %s\n", SDL_GetError());
-        SDL_FreeSurface(surface);
-        return NULL;
+    // Définir le centre de l'image originale et de la nouvelle image
+    int cx = original_width / 2;
+    int cy = original_height / 2;
+    int ncx = new_width / 2;
+    int ncy = new_height / 2;
+
+    // Parcourir chaque pixel de la nouvelle surface et déterminer sa couleur d'après la surface d'origine
+    for (int y = 0; y < new_height; y++) {
+        for (int x = 0; x < new_width; x++) {
+            // Calculer la position inversement transformée
+            int original_x = (int)((x - ncx) * cos(-radians) - (y - ncy) * sin(-radians) + cx);
+            int original_y = (int)((x - ncx) * sin(-radians) + (y - ncy) * cos(-radians) + cy);
+
+            // Vérifier si la position est dans les limites de l'image originale
+            if (original_x >= 0 && original_x < original_width && original_y >= 0 && original_y < original_height) {
+                // Obtenir la couleur du pixel d'origine
+                Uint32 pixel = ((Uint32*)surface->pixels)[original_y * original_width + original_x];
+                // Définir la couleur du pixel dans la nouvelle image
+                ((Uint32*)rotated_surface->pixels)[y * new_width + x] = pixel;
+            }
+        }
     }
 
-    // Définir la texture comme cible de rendu
-    SDL_SetRenderTarget(renderer, rotated_texture);
-    SDL_RenderClear(renderer);
-
-    // Effectuer la rotation
-    SDL_Rect dst_rect = { 0, 0, h, w };
-    SDL_RenderCopyEx(renderer, texture, NULL, &dst_rect, angle, NULL, SDL_FLIP_NONE);
-
-    // Réinitialiser la cible de rendu
-    SDL_SetRenderTarget(renderer, NULL);
-
-    // Libérer la surface
-    SDL_FreeSurface(surface);
-
-    return rotated_texture;
+    return rotated_surface;
 }

@@ -9,7 +9,7 @@ all: $(TARGET)
 
 $(TARGET): $(OBJS)
 	mkdir -p bin
-	$(CC) -o $(TARGET) $(OBJS) -lSDL2 -lSDL2_image
+	$(CC) -o $(TARGET) $(OBJS) -lSDL2 -lSDL2_image -lm
 
 %.o: %.c
 	$(CC) -c $< -o $@ $(CFLAGS)

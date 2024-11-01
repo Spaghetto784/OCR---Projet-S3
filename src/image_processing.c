@@ -1,3 +1,4 @@
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
@@ -28,12 +29,10 @@ SDL_Surface* preprocess_image(SDL_Surface* surface) {
             SDL_GetRGB(pixel, surface->format, &r, &g, &b);
 
             // Calculer la luminosité en utilisant la formule de luminance
-            Uint8 gray = (Uint8)(0.299 * r + 0.587 * g + 0.114 * b);
-            gray_pixels[y * gray_surface->w + x] = SDL_MapRGB(gray_surface->format, gray, gray, gray);
+            Uint8 gray = (Uint8)(0.3 * r + 0.59 * g + 0.11 * b);
+            gray_pixels[y * surface->w + x] = SDL_MapRGB(gray_surface->format, gray, gray, gray);
         }
     }
 
     return gray_surface;
 }
-
-
