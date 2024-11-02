@@ -10,11 +10,11 @@ OCR_TARGET = bin/image_loader
 
 # Cibles pour le module Neural
 NEURAL_SRCS = src/neural_net.o src/main_neural_net.o
-NEURAL_TARGET = neural_test
+NEURAL_TARGET = bin/neural_test
 
 # Cibles pour le module Solver
 SOLVER_SRCS = src/solver.c src/main_solver.c
-SOLVER_TARGET = solver
+SOLVER_TARGET = bin/solver
 
 .PHONY: all ocr neural solver clean
 
