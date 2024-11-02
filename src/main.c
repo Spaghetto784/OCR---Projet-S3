@@ -74,7 +74,8 @@ int main(int argc, char *argv[])
     // Convert the rotated image to a texture and display it
     SDL_Texture *texture =
         SDL_CreateTextureFromSurface(renderer, rotated_image);
-    SDL_FreeSurface(rotated_image); // Free the surface after creating the texture
+    SDL_FreeSurface(
+        rotated_image); // Free the surface after creating the texture
 
     if (!texture)
     {

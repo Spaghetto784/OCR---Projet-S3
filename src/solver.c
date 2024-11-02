@@ -1,22 +1,28 @@
+#include "solver.h"
+
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
-#include "solver.h"
 
 #define MAX_GRID_SIZE 100
 
 // Convert a string to uppercase
-void to_uppercase(char *str) {
-    for (int i = 0; str[i]; i++) {
+void to_uppercase(char *str)
+{
+    for (int i = 0; str[i]; i++)
+    {
         str[i] = toupper((unsigned char)str[i]);
     }
 }
 
 // Function to read the grid from a file
-int read_grid(const char *filename, char grid[MAX_GRID_SIZE][MAX_GRID_SIZE], int *rows, int *cols) {
+int read_grid(const char *filename, char grid[MAX_GRID_SIZE][MAX_GRID_SIZE],
+              int *rows, int *cols)
+{
     FILE *file = fopen(filename, "r");
-    if (!file) {
+    if (!file)
+    {
         fprintf(stderr, "Error: Unable to open file %s\n", filename);
         return 0;
     }
@@ -25,17 +31,22 @@ int read_grid(const char *filename, char grid[MAX_GRID_SIZE][MAX_GRID_SIZE], int
     *cols = 0;
     char line[MAX_GRID_SIZE];
 
-    while (fgets(line, sizeof(line), file) && *rows < MAX_GRID_SIZE) {
+    while (fgets(line, sizeof(line), file) && *rows < MAX_GRID_SIZE)
+    {
         int len = strlen(line);
-        if (line[len - 1] == '\n') {
-            line[len - 1] = '\0';  // Remove newline character
+        if (line[len - 1] == '\n')
+        {
+            line[len - 1] = '\0'; // Remove newline character
             len--;
         }
-        
-        for (int j = 0; j < len && j < MAX_GRID_SIZE; j++) {
+
+        for (int j = 0; j < len && j < MAX_GRID_SIZE; j++)
+        {
             grid[*rows][j] = toupper((unsigned char)line[j]);
         }
-        *cols = len > *cols ? len : *cols;  // Update the number of columns if necessary
+        *cols = len > *cols
+            ? len
+            : *cols; // Update the number of columns if necessary
         (*rows)++;
     }
 
@@ -44,7 +55,9 @@ int read_grid(const char *filename, char grid[MAX_GRID_SIZE][MAX_GRID_SIZE], int
 }
 
 // Function to search for a word in all directions in the grid
-void find_word_in_grid(char grid[MAX_GRID_SIZE][MAX_GRID_SIZE], int rows, int cols, const char *word) {
+void find_word_in_grid(char grid[MAX_GRID_SIZE][MAX_GRID_SIZE], int rows,
+                       int cols, const char *word)
+{
     char word_upper[MAX_GRID_SIZE];
     strncpy(word_upper, word, MAX_GRID_SIZE - 1);
     word_upper[MAX_GRID_SIZE - 1] = '\0';
@@ -53,23 +66,30 @@ void find_word_in_grid(char grid[MAX_GRID_SIZE][MAX_GRID_SIZE], int rows, int co
     int word_len = strlen(word_upper);
 
     // Directions (up, down, left, right, diagonals)
-    int directions[8][2] = {
-        {0, 1}, {1, 0}, {0, -1}, {-1, 0}, {1, 1}, {1, -1}, {-1, -1}, {-1, 1}
-    };
+    int directions[8][2] = { { 0, 1 }, { 1, 0 },  { 0, -1 },  { -1, 0 },
+                             { 1, 1 }, { 1, -1 }, { -1, -1 }, { -1, 1 } };
 
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
-            if (grid[i][j] == word_upper[0]) {  // First letter matches
-                for (int d = 0; d < 8; d++) {
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 0; j < cols; j++)
+        {
+            if (grid[i][j] == word_upper[0])
+            { // First letter matches
+                for (int d = 0; d < 8; d++)
+                {
                     int x = i, y = j, k;
-                    for (k = 1; k < word_len; k++) {
+                    for (k = 1; k < word_len; k++)
+                    {
                         x += directions[d][0];
                         y += directions[d][1];
-                        if (x < 0 || x >= rows || y < 0 || y >= cols || grid[x][y] != word_upper[k]) {
+                        if (x < 0 || x >= rows || y < 0 || y >= cols
+                            || grid[x][y] != word_upper[k])
+                        {
                             break;
                         }
                     }
-                    if (k == word_len) {  // Word found
+                    if (k == word_len)
+                    { // Word found
                         printf("(%d,%d)(%d,%d)\n", j, i, y, x);
                         return;
                     }

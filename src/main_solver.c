@@ -1,11 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
+
 #include "solver.h"
 
 #define MAX_GRID_SIZE 100
 
-int main(int argc, char *argv[]) {
-    if (argc != 3) {
+int main(int argc, char *argv[])
+{
+    if (argc != 3)
+    {
         fprintf(stderr, "Usage: %s <grid_file> <word>\n", argv[0]);
         return EXIT_FAILURE;
     }
@@ -14,7 +17,8 @@ int main(int argc, char *argv[]) {
     int rows, cols;
 
     // Read the grid from the file
-    if (!read_grid(argv[1], grid, &rows, &cols)) {
+    if (!read_grid(argv[1], grid, &rows, &cols))
+    {
         return EXIT_FAILURE;
     }
 
