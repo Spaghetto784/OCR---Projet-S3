@@ -4,9 +4,15 @@ CC = gcc
 CFLAGS = -Wall -Wextra -I/usr/include/SDL2 -Iinclude
 
 # Cibles pour l'OCR
-OCR_SRCS = src/main.c src/load_image.c src/image_processing.c  # Enlève src/preprocessor.c si non utilisé
-OCR_OBJS = $(OCR_SRCS:.c=.o)
-OCR_TARGET = bin/image_loader
+OCRB_SRCS = src/mainBw.c src/load_image.c src/image_processing.c  # Enlève src/preprocessor.c si non utilisé
+OCRB_OBJS = $(OCRB_SRCS:.c=.o)
+OCRB_TARGET = bin/image_loaderB
+
+OCRG_SRCS = src/mainGray.c src/load_image.c src/image_processing.c  # Enlève src/preprocessor.c si non utilisé
+OCRG_OBJS = $(OCRG_SRCS:.c=.o)
+OCRG_TARGET = bin/image_loaderG
+
+
 
 # Cibles pour le module Neural
 NEURAL_SRCS = src/neural_net.o src/main_neural_net.o
@@ -22,11 +28,21 @@ SOLVER_TARGET = bin/solver
 all: ocr neural solver
 
 # Cible pour l'OCR
-ocr: $(OCR_TARGET)
+ocrb: $(OCRB_TARGET)
 
-$(OCR_TARGET): $(OCR_OBJS)
+$(OCRB_TARGET): $(OCRB_OBJS)
 	mkdir -p bin
-	$(CC) -o $(OCR_TARGET) $(OCR_OBJS) -lSDL2 -lSDL2_image -lm
+	$(CC) -o $(OCRB_TARGET) $(OCRB_OBJS) -lSDL2 -lSDL2_image -lm
+
+%.o: %.c
+	$(CC) -c $< -o $@ $(CFLAGS)
+
+
+ocrg: $(OCRG_TARGET)
+
+$(OCRG_TARGET): $(OCRG_OBJS)
+	mkdir -p bin
+	$(CC) -o $(OCRG_TARGET) $(OCRG_OBJS) -lSDL2 -lSDL2_image -lm
 
 %.o: %.c
 	$(CC) -c $< -o $@ $(CFLAGS)
@@ -45,4 +61,4 @@ $(SOLVER_TARGET): $(SOLVER_SRCS)
 
 # Cible de nettoyage
 clean:
-	rm -f $(OCR_OBJS) $(OCR_TARGET) $(NEURAL_SRCS:.c=.o) $(NEURAL_TARGET) $(SOLVER_TARGET)
+	rm -f $(OCRB_OBJS) $(OCRB_TARGET) $(OCRG_OBJS) $(OCRG_TARGET) $(NEURAL_SRCS:.c=.o) $(NEURAL_TARGET) $(SOLVER_TARGET)
