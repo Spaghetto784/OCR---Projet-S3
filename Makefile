@@ -25,7 +25,7 @@ SOLVER_TARGET = bin/solver
 .PHONY: all ocr neural solver clean
 
 # Cible par défaut
-all: ocr neural solver
+all: ocrb ocrg neural solver
 
 # Cible pour l'OCR
 ocrb: $(OCRB_TARGET)
