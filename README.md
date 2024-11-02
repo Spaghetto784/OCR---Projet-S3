@@ -52,11 +52,20 @@ make neural
 ```
 This compiles and runs tests for the neural network.
 
-To run the main OCR application:
+To run the main OCR application with Grayscale treatment: 
 
 ```bash
-make ocr
+make ocrg
 ```
+
+To run the main OCR application with Black and White treatment: 
+
+```bash
+make ocrb
+```
+
+This generates the image_loader executable, the file to use to test the image loading with treatments.
+The file will be called image_loaderB for black and white treatment and image_loaderG for grayscale treatment. 
 
 
 ## License
