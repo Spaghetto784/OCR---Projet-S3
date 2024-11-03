@@ -1,93 +1,205 @@
 #include <SDL2/SDL.h>
 #include <stdio.h>
 
-// Function to return the height of a letter in the SDL surface
-int get_letter_height(SDL_Surface *surface, int startX, int startY)
-{
-    int height = 0;
+int get_letter_top_bound(SDL_Surface *surface, int startX, int startY) {
+    int top_bound = startY; // Initialize top boundary
+    Uint32 pixel;
+    Uint8 r, g, b;
 
-    // Iterate through each row starting from startY
-    for (int y = startY; y < surface->h; y++)
-    {
-        int foundBlackPixel = 0;
-        // To check if we found a black pixel in this row
-
-        // Check each pixel in the column at startX
-        for (int x = startX; x < surface->w; x++)
-        {
-            Uint32 pixel = ((Uint32 *)surface->pixels)[y * surface->w + x];
-            Uint8 r, g, b;
-
+    // Check upward from startY to find the top boundary
+    for (int y = startY; y >= 0; y--) {
+        int black_row = 0; // Flag to check if there's a black pixel in this row
+        for (int x = startX; x < surface->w; x++) {
+            pixel = ((Uint32 *)surface->pixels)[y * surface->w + x];
             SDL_GetRGB(pixel, surface->format, &r, &g, &b);
 
-            // Check if the pixel is black (assuming black is (0,0,0))
-            if (r == 0 && g == 0 && b == 0)
-            {
-                foundBlackPixel = 1;
+            if (r < 50 && g < 50 && b < 50) { // Black pixel threshold
+                black_row = 1;  // Found a black pixel in this row
                 break;
             }
         }
 
-        // If a black pixel was found in this row, increment height
-        if (foundBlackPixel)
-        {
-            height++;
+        if (black_row) {
+            top_bound = y; // Update top boundary
+        } else {
+            break; // End of letter height
         }
-        else if (height > 0)
-        {
-            // If no black pixel is found after finding height, break
+    }
+
+    return top_bound; // Return the top boundary
+}
+
+int get_letter_bottom_bound(SDL_Surface *surface, int startX, int startY) {
+    int bottom_bound = startY; // Initialize bottom boundary
+    Uint32 pixel;
+    Uint8 r, g, b;
+
+    // Check downward from startY to find the bottom boundary
+    for (int y = startY; y < surface->h; y++) {
+        int black_row = 0; // Flag to check if there's a black pixel in this row
+        for (int x = startX; x < surface->w; x++) {
+            pixel = ((Uint32 *)surface->pixels)[y * surface->w + x];
+            SDL_GetRGB(pixel, surface->format, &r, &g, &b);
+
+            if (r < 50 && g < 50 && b < 50) { // Black pixel threshold
+                black_row = 1;  // Found a black pixel in this row
+                break;
+            }
+        }
+
+        if (black_row) {
+            bottom_bound = y; // Update bottom boundary
+        } else if (bottom_bound > startY) {
+            // End of letter height
             break;
         }
     }
 
-    return height;
+    return bottom_bound; // Return the bottom boundary
 }
 
-// Function to return the width of a letter in the SDL surface
-int get_max_letter_width(SDL_Surface *surface)
-{
-    int maxWidth = 0;
+int get_letter_left_bound(SDL_Surface *surface, int startX, int startY) {
+    int left_bound = startX; // Initialize left bound
+    Uint32 pixel;
+    Uint8 r, g, b;
 
-    // Iterate through each row in the surface
-    for (int row = 0; row < surface->h; row++)
-    {
-        int currentWidth = 0;
-
-        // Iterate through each column in the current row
-        for (int x = 0; x < surface->w; x++)
-        {
-            Uint32 pixel = ((Uint32 *)surface->pixels)[row * surface->w + x];
-            Uint8 r, g, b;
-
+    // Check leftward from startX to find the left boundary
+    for (int x = startX; x >= 0; x--) {
+        int black_column = 0; // Flag to check if there's a black pixel in this column
+        for (int y = startY; y < surface->h; y++) {
+            pixel = ((Uint32 *)surface->pixels)[y * surface->w + x];
             SDL_GetRGB(pixel, surface->format, &r, &g, &b);
 
-            if (r == 0 && g == 0 && b == 0)
-            {
-                currentWidth++;
-            }
-            else
-            {
-                if (currentWidth > maxWidth)
-                {
-                    maxWidth = currentWidth;
-                }
-                currentWidth = 0; // Reset currentWidth for the next letter
+            if (r < 50 && g < 50 && b < 50) { // Black pixel threshold
+                black_column = 1;  // Found a black pixel in this column
+                break;
             }
         }
 
-        // Check if the last letter width needs to be accounted for
-        if (currentWidth > maxWidth)
-        {
-            maxWidth = currentWidth;
+        if (black_column) {
+            left_bound = x;  // Update left boundary if a black pixel is found
+        } else {
+            break;  // End of black pixels to the left
         }
     }
 
-    return maxWidth;
+    return left_bound; // Return the left boundary
 }
+
+int get_letter_right_bound(SDL_Surface *surface, int startX, int startY) {
+    int right_bound = startX; // Initialize right bound
+    Uint32 pixel;
+    Uint8 r, g, b;
+
+    // Check rightward from startX to find the right boundary
+    for (int x = startX; x < surface->w; x++) {
+        int black_column = 0; // Flag to check if there's a black pixel in this column
+        for (int y = startY; y < surface->h; y++) {
+            pixel = ((Uint32 *)surface->pixels)[y * surface->w + x];
+            SDL_GetRGB(pixel, surface->format, &r, &g, &b);
+
+            if (r < 50 && g < 50 && b < 50) { // Black pixel threshold
+                black_column = 1;  // Found a black pixel in this column
+                break;
+            }
+        }
+
+        if (black_column) {
+            right_bound = x;  // Update right boundary if a black pixel is found
+        } else {
+            break;  // End of black pixels to the right
+        }
+    }
+
+    return right_bound; // Return the right boundary
+}
+
+int get_letter_width(SDL_Surface *surface, int startX, int startY) {
+    int left_bound = get_letter_left_bound(surface, startX, startY);
+    int right_bound = get_letter_right_bound(surface, startX, startY);
+
+    // Width is the distance between the leftmost and rightmost black pixels
+    return (right_bound - left_bound + 1);
+}
+
+int get_letter_height(SDL_Surface *surface, int startX, int startY) {
+    int top_bound = get_letter_top_bound(surface, startX, startY);
+    int bottom_bound = get_letter_bottom_bound(surface, startX, startY);
+
+    // Height is the distance between the topmost and bottommost black pixels
+    return (bottom_bound - top_bound + 1);
+}
+
+
+
 
 void draw_red_box(SDL_Surface *surface, int x1, int y1, int x2, int y2)
 {
     Uint32 red_pixel = SDL_MapRGB(surface->format, 255, 0, 0);
+
+    // Ensure the coordinates are within bounds
+    if (x1 < 0)
+        x1 = 0;
+    if (y1 < 0)
+        y1 = 0;
+    if (x2 >= surface->w)
+        x2 = surface->w - 1;
+    if (y2 >= surface->h)
+        y2 = surface->h - 1;
+
+    // Check for red pixels in the bounding box
+    for (int y = y1; y <= y2; y++)
+    {
+        for (int x = x1; x <= x2; x++)
+        {
+            if (x >= 0 && x < surface->w && y >= 0 && y < surface->h)
+            {
+                Uint32 pixel = ((Uint32 *)surface->pixels)[y * surface->w + x];
+                if (pixel == red_pixel)
+                {
+                    // A red pixel is found, exit the function without drawing
+                    // the box
+                    return;
+                }
+            }
+        }
+    }
+
+    // No red pixels found, proceed to draw the red box
+    for (int x = x1; x <= x2; x++)
+    {
+        if (x >= 0 && x < surface->w)
+        {
+            if (y1 >= 0 && y1 < surface->h)
+            {
+                ((Uint32 *)surface->pixels)[y1 * surface->w + x] =
+                    red_pixel; // Top edge
+            }
+            if (y2 >= 0 && y2 < surface->h)
+            {
+                ((Uint32 *)surface->pixels)[y2 * surface->w + x] = red_pixel;
+            }
+        }
+    }
+    for (int y = y1; y <= y2; y++)
+    {
+        if (y >= 0 && y < surface->h)
+        {
+            if (x1 >= 0 && x1 < surface->w)
+            {
+                ((Uint32 *)surface->pixels)[y * surface->w + x1] = red_pixel;
+            }
+            if (x2 >= 0 && x2 < surface->w)
+            {
+                ((Uint32 *)surface->pixels)[y * surface->w + x2] = red_pixel;
+            }
+        }
+    }
+}
+
+void draw_green_box(SDL_Surface *surface, int x1, int y1, int x2, int y2)
+{
+    Uint32 red_pixel = SDL_MapRGB(surface->format, 0, 255, 0);
 
     // Ensure the coordinates are within bounds
     if (x1 < 0)
@@ -159,11 +271,6 @@ void add_square_to_letter(SDL_Surface *surface, int startx, int starty,
     Uint32 pixel;
     int width = surface->w;
 
-    // Get letter height and maximum width
-    int lheight = get_letter_height(surface, 0, 0);
-    // Replace with actual function
-    int lwidth = get_max_letter_width(surface);
-    // Replace with actual function
 
     // Iterate through each pixel to detect letter-like clusters
     for (int y = starty; y < endy; y++)
@@ -176,9 +283,12 @@ void add_square_to_letter(SDL_Surface *surface, int startx, int starty,
             // Detect black pixels (threshold values may need adjustment)
             if (r < 50 && g < 50 && b < 50)
             {
+				int lwidth = get_letter_width(surface,  x,  y);
+                int lheight = get_letter_height(surface,  x,  y);
+                int left = get_letter_left_bound(surface, x, y);
                 // Draw a red box around this letter cluster
-                draw_red_box(surface, x - lwidth / 2, y - lheight / 2,
-                             x + lwidth, y + lheight);
+                draw_red_box(surface, left, y,
+                             left + lwidth, y + lheight);
             }
         }
     }
