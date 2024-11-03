@@ -68,6 +68,15 @@ This generates the image_loader executable, the file to use to test the image lo
 The file will be called image_loaderB for black and white treatment and image_loaderG for grayscale treatment. 
 
 
+To run the main OCR application with detection treatment:
+
+```bash
+make det
+```
+
+This will generate the image_Det executable, the file to use to test the image loading with detection treatments.
+
+
 ## License
 
 This project is licensed under the MIT License.
