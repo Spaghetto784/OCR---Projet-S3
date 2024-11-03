@@ -5,6 +5,7 @@
 
 #include "image_processing.h"
 #include "load_image.h"
+#include "detect.h"
 
 int main(int argc, char *argv[])
 {

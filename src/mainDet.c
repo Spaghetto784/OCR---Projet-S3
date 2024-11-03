@@ -5,6 +5,7 @@
 
 #include "image_processing.h"
 #include "load_image.h"
+#include "detect.h"
 
 int main(int argc, char *argv[])
 {
@@ -51,6 +52,9 @@ int main(int argc, char *argv[])
         SDL_Quit();
         return 1;
     }
+
+    // Call the detect function to process the rotated image
+    detect(rotated_image); // Call detect on the rotated image
 
     // Create a window to display the rotated image
     SDL_Window *window = SDL_CreateWindow(
