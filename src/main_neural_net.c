@@ -11,9 +11,9 @@ int main(int argc, char *argv[])
     // Train the network on the truth data
     for (int epoch = 0; epoch < 10000; epoch++)
     {
-        train(0, 0, 0);
+        train(0, 0, 1);
         train(0, 1, 0);
-        train(1, 0, 1);
+        train(1, 0, 0);
         train(1, 1, 1);
     }
 
