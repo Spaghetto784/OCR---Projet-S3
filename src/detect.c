@@ -1,21 +1,24 @@
 #include <SDL2/SDL.h>
 #include <stdio.h>
 
+#include <SDL2/SDL.h>
+#include <stdio.h>
+
 int get_letter_top_bound(SDL_Surface *surface, int startX, int startY)
 {
-    Uint32 black_pixel = SDL_MapRGB(surface->format, 0, 0, 0);
+    Uint32 white_pixel = SDL_MapRGB(surface->format, 255, 255, 255);
     int top_bound = startY;
 
     for (int y = startY; y >= 0; y--) {
-        int black_row = 0;
+        int non_white_row = 0;
         for (int x = startX; x < surface->w; x++) {
             Uint32 pixel = ((Uint32 *)surface->pixels)[y * surface->w + x];
-            if (pixel == black_pixel) {
-                black_row = 1;
+            if (pixel != white_pixel) {
+                non_white_row = 1;
                 break;
             }
         }
-        if (black_row) {
+        if (non_white_row) {
             top_bound = y;
         } else {
             break;
@@ -26,19 +29,19 @@ int get_letter_top_bound(SDL_Surface *surface, int startX, int startY)
 
 int get_letter_bottom_bound(SDL_Surface *surface, int startX, int startY)
 {
-    Uint32 black_pixel = SDL_MapRGB(surface->format, 0, 0, 0);
+    Uint32 white_pixel = SDL_MapRGB(surface->format, 255, 255, 255);
     int bottom_bound = startY;
 
     for (int y = startY; y < surface->h; y++) {
-        int black_row = 0;
+        int non_white_row = 0;
         for (int x = startX; x < surface->w; x++) {
             Uint32 pixel = ((Uint32 *)surface->pixels)[y * surface->w + x];
-            if (pixel == black_pixel) {
-                black_row = 1;
+            if (pixel != white_pixel) {
+                non_white_row = 1;
                 break;
             }
         }
-        if (black_row) {
+        if (non_white_row) {
             bottom_bound = y;
         } else if (bottom_bound > startY) {
             break;
@@ -49,19 +52,19 @@ int get_letter_bottom_bound(SDL_Surface *surface, int startX, int startY)
 
 int get_letter_left_bound(SDL_Surface *surface, int startX, int startY)
 {
-    Uint32 black_pixel = SDL_MapRGB(surface->format, 0, 0, 0);
+    Uint32 white_pixel = SDL_MapRGB(surface->format, 255, 255, 255);
     int left_bound = startX;
 
     for (int x = startX; x >= 0; x--) {
-        int black_column = 0;
+        int non_white_column = 0;
         for (int y = startY; y < surface->h; y++) {
             Uint32 pixel = ((Uint32 *)surface->pixels)[y * surface->w + x];
-            if (pixel == black_pixel) {
-                black_column = 1;
+            if (pixel != white_pixel) {
+                non_white_column = 1;
                 break;
             }
         }
-        if (black_column) {
+        if (non_white_column) {
             left_bound = x;
         } else {
             break;
@@ -72,19 +75,19 @@ int get_letter_left_bound(SDL_Surface *surface, int startX, int startY)
 
 int get_letter_right_bound(SDL_Surface *surface, int startX, int startY)
 {
-    Uint32 black_pixel = SDL_MapRGB(surface->format, 0, 0, 0);
+    Uint32 white_pixel = SDL_MapRGB(surface->format, 255, 255, 255);
     int right_bound = startX;
 
     for (int x = startX; x < surface->w; x++) {
-        int black_column = 0;
+        int non_white_column = 0;
         for (int y = startY; y < surface->h; y++) {
             Uint32 pixel = ((Uint32 *)surface->pixels)[y * surface->w + x];
-            if (pixel == black_pixel) {
-                black_column = 1;
+            if (pixel != white_pixel) {
+                non_white_column = 1;
                 break;
             }
         }
-        if (black_column) {
+        if (non_white_column) {
             right_bound = x;
         } else {
             break;
@@ -92,8 +95,6 @@ int get_letter_right_bound(SDL_Surface *surface, int startX, int startY)
     }
     return right_bound;
 }
-
-
 
 void draw_box(SDL_Surface *surface, int x1, int y1, int x2, int y2,
  Uint8 r, Uint8 g, Uint8 b)
@@ -142,17 +143,28 @@ void add_square_to_letter(SDL_Surface *surface, int startx, int starty, int endx
 
     // Iterate through each pixel to detect letter-like clusters
     for (int y = starty; y < endy; y++) {
+		int top, bottom, left, right=0, space;
         for (int x = startx; x < endx; x++) {
             Uint32 pixel = ((Uint32 *)surface->pixels)[y * width + x];
-
+		
             if (pixel == black_pixel) {
-                int top = get_letter_top_bound(surface, x, y);
-                int bottom = get_letter_bottom_bound(surface, x, y);
-                int left = get_letter_left_bound(surface, x, y);
-                int right = get_letter_right_bound(surface, x, y);
+				left = get_letter_left_bound(surface, x, y);
+                top = get_letter_top_bound(surface, x, y);
+                bottom = get_letter_bottom_bound(surface, x, y);
+                space = left - right;
+                right = get_letter_right_bound(surface, x, y);
+				
+				
+                if (space>10){
+					draw_box(surface, left, top, right, bottom, 0, 255, 0);
+				}
+				else{
+					draw_box(surface, left, top, right, bottom, 255, 0, 0);
+				}
+                
+             
 
-                // Use the draw_box function to draw the box around the detected letter
-                draw_box(surface, left, top, right, bottom, 250, 0, 0);
+                
 
                 // Skip over the processed letter cluster to avoid multiple boxes
                 x = right;  // Move to the right of the current cluster
