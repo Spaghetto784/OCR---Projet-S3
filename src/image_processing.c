@@ -91,3 +91,53 @@ SDL_Surface* convert_to_bw(SDL_Surface* grayscaleSurface, Uint8 threshold) {
     return bwSurface;
 }
 
+int restrict_val(int x, int mi, int ma)
+{
+    return x<mi ? mi : (x>ma ? ma : x);
+}
+
+SDL_Surface* enhance_contrast(SDL_Surface* surface, double contrast, double gamma) {
+    if (surface == NULL) {
+        printf("Input surface is NULL\n");
+        return NULL; // Handle null input
+    }
+
+    // Create a new surface for the contrasted image
+    SDL_Surface* contrastedSurface = SDL_CreateRGBSurface(0, surface->w, surface->h, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
+    if (contrastedSurface == NULL) {
+        printf("Unable to create the contrasted surface: %s\n", SDL_GetError());
+        return NULL;
+    }
+
+    // Lock the surfaces for direct pixel access
+    SDL_LockSurface(surface);
+    SDL_LockSurface(contrastedSurface);
+
+    // Iterate over each pixel
+    for (int y = 0; y < surface->h; y++) {
+        for (int x = 0; x < surface->w; x++) {
+            // Get the pixel color
+            Uint32 pixel = ((Uint32*)surface->pixels)[y * (surface->pitch / 4) + x];
+            Uint8 r, g, b;
+            SDL_GetRGB(pixel, surface->format, &r, &g, &b);
+
+            //calculate value of contrasted pixel
+            Uint8 nr,ng,nb;
+            nr = (Uint8)(restrict_val((contrast*(r-128)+128+gamma),0,255));
+            ng = (Uint8)(restrict_val((contrast*(g-128)+128+gamma),0,255));
+            nb = (Uint8)(restrict_val((contrast*(b-128)+128+gamma),0,255));
+
+
+            // Set the pixel color in the contrasted image
+            Uint32 contrastedPixel = SDL_MapRGB(contrastedSurface->format, nr, ng, nb);
+            ((Uint32*)contrastedSurface->pixels)[y * (contrastedSurface->pitch / 4) + x] = contrastedPixel;
+        }
+    }
+
+    // Unlock the surfaces
+    SDL_UnlockSurface(surface);
+    SDL_UnlockSurface(contrastedSurface);
+
+    return contrastedSurface;
+}
+
