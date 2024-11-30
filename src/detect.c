@@ -5,6 +5,8 @@
 #include <errno.h> 
 #include <string.h>
 #include <stdbool.h>
+#include <SDL_image.h>
+
 
 int get_letter_top_bound(SDL_Surface *surface, int startX, int startY)
 {
@@ -318,10 +320,10 @@ void extract_and_save_letters(SDL_Surface *surface, const char *output_folder_li
             // Save the letter surface as an image in the corresponding folder
             char filename[256];
             if (bounding_color == blue_pixel) {
-                snprintf(filename, sizeof(filename), "%s/letter_%03d_%03d.bmp", output_folder_list, xLetterList, yLetterList);
+                snprintf(filename, sizeof(filename), "%s/letter_%03d_%03d.png", output_folder_list, xLetterList, yLetterList);
                 xLetterList++;
             } else if (bounding_color == red_pixel) {
-                snprintf(filename, sizeof(filename), "%s/letter_%03d_%03d.bmp", output_folder_grid, xLetterGrid, yLetterGrid);
+                snprintf(filename, sizeof(filename), "%s/letter_%03d_%03d.png", output_folder_grid, xLetterGrid, yLetterGrid);
                 xLetterGrid++;
             } else {
                 fprintf(stderr, "Unknown bounding box color at (%d, %d)\n", x, y);
@@ -329,9 +331,10 @@ void extract_and_save_letters(SDL_Surface *surface, const char *output_folder_li
                 continue;
             }
 
-            if (SDL_SaveBMP(letter_surface, filename) != 0) {
-                fprintf(stderr, "Failed to save letter image: %s\n", SDL_GetError());
+            if (IMG_SavePNG(letter_surface, filename) != 0) {
+                fprintf(stderr, "Failed to save letter image as PNG: %s\n", SDL_GetError());
             }
+
 
             // Free the letter surface
             SDL_FreeSurface(letter_surface);

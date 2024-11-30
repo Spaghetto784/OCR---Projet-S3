@@ -89,3 +89,4 @@ $(SOLVER_TARGET): $(SOLVER_SRCS)
 # Cible de nettoyage
 clean:
 	rm -f $(OCRB_OBJS) $(DET_OBJS) $(DET_TARGET) $(OCRB_TARGET) $(OCRG_OBJS) $(OCRG_TARGET) $(OCRContrast_OBJS) $(OCRContrast_TARGET) $(NEURAL_SRCS:.c=.o) $(NEURAL_TARGET) $(SOLVER_TARGET)
+	rm -f letterGrid/*.png letterGrid/*.bmp letterList/*.png letterList/*.bmp
