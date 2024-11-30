@@ -1,8 +1,10 @@
 #include <SDL2/SDL.h>
 #include <stdio.h>
-
-#include <SDL2/SDL.h>
-#include <stdio.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <errno.h> 
+#include <string.h>
+#include <stdbool.h>
 
 int get_letter_top_bound(SDL_Surface *surface, int startX, int startY)
 {
@@ -132,7 +134,59 @@ void draw_box(SDL_Surface *surface, int x1, int y1, int x2, int y2,
 
 
 
+void getSpaces(SDL_Surface *surface, int *spaceGrid, int *spaceList) {
+    if (!surface || !spaceGrid || !spaceList) return;
 
+    int width = surface->w;
+    int height = surface->h;
+    Uint32 *pixels = (Uint32 *)surface->pixels;
+
+    int totalGridSpaces = 0, countGridSpaces = 0;
+    int totalListSpaces = 0, countListSpaces = 0;
+
+    int currentSpace = 0;
+    bool isGrid = true; // Default assumption: starting in the grid.
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            // Get pixel color.
+            Uint32 pixel = pixels[y * width + x];
+            Uint8 r, g, b;
+            SDL_GetRGB(pixel, surface->format, &r, &g, &b);
+
+            bool isBlack = (r == 0 && g == 0 && b == 0);
+
+            if (isBlack) {
+                if (currentSpace > 0) {
+                    // Classify the space.
+                    if (isGrid) {
+                        totalGridSpaces += currentSpace;
+                        countGridSpaces++;
+                    } else {
+                        totalListSpaces += currentSpace;
+                        countListSpaces++;
+                    }
+                    currentSpace = 0;
+                }
+            } else {
+                currentSpace++;
+            }
+        }
+        // Switch between grid and list when encountering large gaps (heuristic).
+        if (currentSpace > 0) {
+            if (currentSpace > 10) { // Adjust this threshold as needed.
+                isGrid = true;
+            } else {
+                isGrid = false;
+            }
+        }
+        currentSpace = 0; // Reset at the end of each row.
+    }
+
+    // Compute averages.
+    *spaceGrid = (countGridSpaces > 0) ? (totalGridSpaces / countGridSpaces) : 0;
+    *spaceList = (countListSpaces > 0) ? (totalListSpaces / countListSpaces) : 0;
+}
 
 void add_square_to_letter(SDL_Surface *surface, int startx, int starty, int endx, int endy)
 {
@@ -140,6 +194,9 @@ void add_square_to_letter(SDL_Surface *surface, int startx, int starty, int endx
     SDL_LockSurface(surface);
     Uint32 black_pixel = SDL_MapRGB(surface->format, 0, 0, 0);
     int width = surface->w;
+    int spaceGrid, spaceList;
+    getSpaces(surface, &spaceGrid, &spaceList);
+    printf("spaceGrid: %d, spaceList: %d\n", spaceGrid, spaceList);
 
     // Iterate through each pixel to detect letter-like clusters
     for (int y = starty; y < endy; y++) {
@@ -153,17 +210,18 @@ void add_square_to_letter(SDL_Surface *surface, int startx, int starty, int endx
                 bottom = get_letter_bottom_bound(surface, x, y);
                 space = left - right;
                 right = get_letter_right_bound(surface, x, y);
+                
 				
-				
-                if (space>10){
-					draw_box(surface, left, top, right, bottom, 0, 255, 0);
+				printf("Lettre at (%d, %d): left=%d, right=%d, space=%d\n", x, y, left, right, space);
+                if (space>spaceList + 10 && left > 100){
+                    draw_box(surface, left, top, right, bottom, 255, 0, 0);
 				}
 				else{
-					draw_box(surface, left, top, right, bottom, 255, 0, 0);
+					draw_box(surface, left, top, right, bottom, 0, 0, 255);
 				}
                 
              
-
+                
                 
 
                 // Skip over the processed letter cluster to avoid multiple boxes
@@ -174,6 +232,129 @@ void add_square_to_letter(SDL_Surface *surface, int startx, int starty, int endx
 
     // Unlock the surface after processing
     SDL_UnlockSurface(surface);
+}
+
+void extract_and_save_letters(SDL_Surface *surface, const char *output_folder_list, const char *output_folder_grid) {
+    if (!surface || !output_folder_list || !output_folder_grid) return;
+
+    // Create the output directories if they don't exist
+    struct stat st = {0};
+    if (stat(output_folder_list, &st) == -1) {
+        if (mkdir(output_folder_list, 0700) != 0) {
+            fprintf(stderr, "Failed to create directory '%s': %s\n", output_folder_list, strerror(errno));
+            return;
+        }
+    }
+    if (stat(output_folder_grid, &st) == -1) {
+        if (mkdir(output_folder_grid, 0700) != 0) {
+            fprintf(stderr, "Failed to create directory '%s': %s\n", output_folder_grid, strerror(errno));
+            return;
+        }
+    }
+
+    Uint32 white_pixel = SDL_MapRGB(surface->format, 255, 255, 255);
+    Uint32 red_pixel = SDL_MapRGB(surface->format, 255, 0, 0);
+    Uint32 blue_pixel = SDL_MapRGB(surface->format, 0, 0, 255);
+
+    Uint32 *pixels = (Uint32 *)surface->pixels;
+    int width = surface->w;
+    int height = surface->h;
+
+    bool **visited = calloc(height, sizeof(bool *));
+    for (int y = 0; y < height; y++) {
+        visited[y] = calloc(width, sizeof(bool));
+    }
+
+    int xLetterGrid = 0, yLetterGrid = 0, xLetterList = 0, yLetterList = 0;
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            // Skip visited or white pixels
+            if (visited[y][x] || pixels[y * width + x] == white_pixel) {
+                continue;
+            }
+
+            // Detect letter bounds
+            int top = get_letter_top_bound(surface, x, y);
+            int bottom = get_letter_bottom_bound(surface, x, y);
+            int left = get_letter_left_bound(surface, x, y);
+            int right = get_letter_right_bound(surface, x, y);
+
+            // Mark pixels within the bounds as visited
+            for (int j = top; j <= bottom; j++) {
+                for (int i = left; i <= right; i++) {
+                    visited[j][i] = true;
+                }
+            }
+
+            // Determine the bounding box color
+            Uint32 bounding_color = white_pixel;
+            for (int j = left; j <= right; j++) {
+                if (pixels[top * width + j] == red_pixel || pixels[top * width + j] == blue_pixel) {
+                    bounding_color = pixels[top * width + j];
+                    break;
+                }
+            }
+
+            // Create a new surface for the letter
+            int letter_width = right - left + 1;
+            int letter_height = bottom - top + 1;
+            SDL_Surface *letter_surface = SDL_CreateRGBSurfaceWithFormat(
+                0, letter_width, letter_height, 32, surface->format->format);
+            if (!letter_surface) {
+                fprintf(stderr, "Failed to create letter surface: %s\n", SDL_GetError());
+                continue;
+            }
+
+            // Copy letter pixels to the new surface
+            Uint32 *letter_pixels = (Uint32 *)letter_surface->pixels;
+            for (int j = 0; j < letter_height; j++) {
+                for (int i = 0; i < letter_width; i++) {
+                    letter_pixels[j * letter_width + i] =
+                        pixels[(top + j) * width + (left + i)];
+                }
+            }
+
+            // Save the letter surface as an image in the corresponding folder
+            char filename[256];
+            if (bounding_color == blue_pixel) {
+                snprintf(filename, sizeof(filename), "%s/letter_%03d_%03d.bmp", output_folder_list, xLetterList, yLetterList);
+                xLetterList++;
+            } else if (bounding_color == red_pixel) {
+                snprintf(filename, sizeof(filename), "%s/letter_%03d_%03d.bmp", output_folder_grid, xLetterGrid, yLetterGrid);
+                xLetterGrid++;
+            } else {
+                fprintf(stderr, "Unknown bounding box color at (%d, %d)\n", x, y);
+                SDL_FreeSurface(letter_surface);
+                continue;
+            }
+
+            if (SDL_SaveBMP(letter_surface, filename) != 0) {
+                fprintf(stderr, "Failed to save letter image: %s\n", SDL_GetError());
+            }
+
+            // Free the letter surface
+            SDL_FreeSurface(letter_surface);
+        }
+
+        // Reset horizontal counters for a new row of letters
+        if (xLetterList > 0) {
+            xLetterList = 0;
+            yLetterList++;
+        }
+        if (xLetterGrid > 0) {
+            xLetterGrid = 0;
+            yLetterGrid++;
+        }
+    }
+
+
+    // Free visited array
+    for (int y = 0; y < height; y++) {
+        free(visited[y]);
+    }
+    free(visited);
+
 }
 
 
@@ -190,4 +371,5 @@ void detect(SDL_Surface *surface)
     int width = surface->w;
     int height = surface->h;
     add_square_to_letter(surface, 0, 0, width, height);
+    extract_and_save_letters(surface, "letterList", "letterGrid");
 }
