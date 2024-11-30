@@ -141,3 +141,178 @@ SDL_Surface* enhance_contrast(SDL_Surface* surface, double contrast, double gamm
     return contrastedSurface;
 }
 
+
+//function to create a gaussian kernel
+void generateGaussianKernel(float *kernel, int kernelSize, float sigma) {
+    int halfSize = kernelSize / 2;
+    float sum = 0.0f;
+
+    for (int y = -halfSize; y <= halfSize; y++) {
+        for (int x = -halfSize; x <= halfSize; x++) {
+            float value = expf(-(x * x + y * y) / (2 * sigma * sigma));
+            kernel[(y + halfSize) * kernelSize + (x + halfSize)] = value;
+            sum += value;
+        }
+    }
+
+    // Kernel normalization
+    for (int i = 0; i < kernelSize * kernelSize; i++) {
+        kernel[i] /= sum;
+    }
+}
+
+// Function to apply gaussian filter
+SDL_Surface *apply_gaussian_filter(SDL_Surface *surface, int kernelSize, float sigma) {
+    if (surface == NULL) return NULL;
+
+    // Gaussian Kernel Generation
+    float *kernel = malloc(kernelSize * kernelSize * sizeof(float));
+    if (kernel == NULL) return NULL;
+    generateGaussianKernel(kernel, kernelSize, sigma);
+
+   
+    SDL_Surface *result = SDL_CreateRGBSurfaceWithFormat(
+        0, surface->w, surface->h, surface->format->BitsPerPixel, surface->format->format);
+    if (result == NULL) {
+        free(kernel);
+        return NULL;
+    }
+
+    SDL_LockSurface(surface);
+    SDL_LockSurface(result);
+
+    Uint32 *srcPixels = (Uint32 *)surface->pixels;
+    Uint32 *dstPixels = (Uint32 *)result->pixels;
+
+    int halfSize = kernelSize / 2;
+
+    for (int y = 0; y < surface->h; y++) {
+        for (int x = 0; x < surface->w; x++) {
+            float r = 0, g = 0, b = 0;
+            float kernelSum = 0.0f;
+
+            for (int ky = -halfSize; ky <= halfSize; ky++) {
+                for (int kx = -halfSize; kx <= halfSize; kx++) {
+                    int px = x + kx;
+                    int py = y + ky;
+
+                    if (px >= 0 && px < surface->w && py >= 0 && py < surface->h) {
+                        Uint32 pixel = srcPixels[py * surface->w + px];
+                        Uint8 pr, pg, pb;
+                        SDL_GetRGB(pixel, surface->format, &pr, &pg, &pb);
+
+                        float kernelValue = kernel[(ky + halfSize) * kernelSize + (kx + halfSize)];
+                        r += pr * kernelValue;
+                        g += pg * kernelValue;
+                        b += pb * kernelValue;
+                        kernelSum += kernelValue;
+                    }
+                }
+            }
+
+        
+            r /= kernelSum;
+            g /= kernelSum;
+            b /= kernelSum;
+
+            dstPixels[y * surface->w + x] = SDL_MapRGB(result->format, (Uint8)r, (Uint8)g, (Uint8)b);
+        }
+    }
+
+    SDL_UnlockSurface(surface);
+    SDL_UnlockSurface(result);
+
+    free(kernel);
+    return result;
+}
+
+
+// Function which compare two numbers (useful for qsort)
+int compare(const void *a, const void *b) {
+    return (*(Uint8 *)a - *(Uint8 *)b);
+}
+
+// function to applu median filter
+SDL_Surface *apply_median_filter(SDL_Surface *surface, int kernelSize) {
+    if (surface == NULL || kernelSize < 3 || kernelSize % 2 == 0) return NULL;
+
+    // Creation of new surface for result
+    SDL_Surface *result = SDL_CreateRGBSurfaceWithFormat(
+        0, surface->w, surface->h, surface->format->BitsPerPixel, surface->format->format);
+    if (result == NULL) {
+        return NULL;
+    }
+
+    SDL_LockSurface(surface);
+    SDL_LockSurface(result);
+
+    Uint32 *srcPixels = (Uint32 *)surface->pixels;
+    Uint32 *dstPixels = (Uint32 *)result->pixels;
+
+    int halfSize = kernelSize / 2;
+    int windowSize = kernelSize * kernelSize;
+
+    Uint8 *rValues = malloc(windowSize * sizeof(Uint8));
+    Uint8 *gValues = malloc(windowSize * sizeof(Uint8));
+    Uint8 *bValues = malloc(windowSize * sizeof(Uint8));
+
+    if (rValues == NULL || gValues == NULL || bValues == NULL) {
+        SDL_UnlockSurface(surface);
+        SDL_UnlockSurface(result);
+        SDL_FreeSurface(result);
+        free(rValues);
+        free(gValues);
+        free(bValues);
+        return NULL;
+    }
+
+    // Iterate over pixels
+    for (int y = 0; y < surface->h; y++) {
+        for (int x = 0; x < surface->w; x++) {
+            int count = 0;
+
+        
+            for (int ky = -halfSize; ky <= halfSize; ky++) {
+                for (int kx = -halfSize; kx <= halfSize; kx++) {
+                    int px = x + kx;
+                    int py = y + ky;
+
+                    
+                    if (px >= 0 && px < surface->w && py >= 0 && py < surface->h) {
+                        Uint32 pixel = srcPixels[py * surface->w + px];
+                        Uint8 r, g, b;
+                        SDL_GetRGB(pixel, surface->format, &r, &g, &b);
+
+                        rValues[count] = r;
+                        gValues[count] = g;
+                        bValues[count] = b;
+                        count++;
+                    }
+                }
+            }
+
+            // sorting values to find median
+            qsort(rValues, count, sizeof(Uint8), compare);
+            qsort(gValues, count, sizeof(Uint8), compare);
+            qsort(bValues, count, sizeof(Uint8), compare);
+
+            Uint8 medianR = rValues[count / 2];
+            Uint8 medianG = gValues[count / 2];
+            Uint8 medianB = bValues[count / 2];
+
+            // maping the pixel after treatment 
+            dstPixels[y * surface->w + x] = SDL_MapRGB(result->format, medianR, medianG, medianB);
+        }
+    }
+
+    SDL_UnlockSurface(surface);
+    SDL_UnlockSurface(result);
+
+    free(rValues);
+    free(gValues);
+    free(bValues);
+
+    return result;
+}
+
+

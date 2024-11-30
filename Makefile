@@ -16,6 +16,10 @@ OCRContrast_SRCS = src/mainContrast.c src/load_image.c src/image_processing.c # 
 OCRContrast_OBJS = $(OCRContrast_SRCS:.c=.o)
 OCRContrast_TARGET = bin/image_loaderContrasted
 
+OCRFilter_SRCS = src/mainFilter.c src/load_image.c src/image_processing.c # Enlève src/preprocessor.c si non utilisé
+OCRFilter_OBJS = $(OCRFilter_SRCS:.c=.o)
+OCRFilter_TARGET = bin/image_loaderFiltered
+
 # Cibles pour detection
 DET_SRCS = src/mainDet.c src/load_image.c src/image_processing.c src/detect.c # Enlève src/preprocessor.c si non utilisé
 DET_OBJS = $(DET_SRCS:.c=.o)
@@ -64,6 +68,15 @@ $(OCRContrast_TARGET): $(OCRContrast_OBJS)
 %.o: %.c
 	$(CC) -c $< -o $@ $(CFLAGS)
 
+ocrf: $(OCRFilter_TARGET)
+
+$(OCRFilter_TARGET): $(OCRFilter_OBJS)
+	mkdir -p bin
+	$(CC) -o $(OCRFilter_TARGET) $(OCRFilter_OBJS) -lSDL2 -lSDL2_image -lm
+
+%.o: %.c
+	$(CC) -c $< -o $@ $(CFLAGS)
+
 
 det: $(DET_TARGET)
 
@@ -88,5 +101,5 @@ $(SOLVER_TARGET): $(SOLVER_SRCS)
 
 # Cible de nettoyage
 clean:
-	rm -f $(OCRB_OBJS) $(DET_OBJS) $(DET_TARGET) $(OCRB_TARGET) $(OCRG_OBJS) $(OCRG_TARGET) $(OCRContrast_OBJS) $(OCRContrast_TARGET) $(NEURAL_SRCS:.c=.o) $(NEURAL_TARGET) $(SOLVER_TARGET)
+	rm -f $(OCRB_OBJS) $(DET_OBJS) $(DET_TARGET) $(OCRB_TARGET) $(OCRG_OBJS) $(OCRG_TARGET) $(OCRContrast_OBJS) $(OCRContrast_TARGET) $(OCRFilter_OBJS) $(OCRFilter_TARGET) $(NEURAL_SRCS:.c=.o) $(NEURAL_TARGET) $(SOLVER_TARGET)
 	rm -f letterGrid/*.png letterGrid/*.bmp letterList/*.png letterList/*.bmp
