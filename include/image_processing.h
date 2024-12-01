@@ -15,6 +15,10 @@ SDL_Surface *apply_gaussian_filter(SDL_Surface *surface, int kernelSize, float s
 
 SDL_Surface *apply_median_filter(SDL_Surface *surface, int kernelSize);
 
+SDL_Surface* invert_colors(SDL_Surface* surface);
+
+Uint8 calculate_threshold(SDL_Surface* surface);
+
 
 SDL_Surface* rotate_image(SDL_Surface* surface, int angle);
 

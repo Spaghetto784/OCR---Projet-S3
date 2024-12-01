@@ -3,9 +3,9 @@
 #include <SDL2/SDL.h>
 
 // Constants for grayscale conversion
-#define RED_WEIGHT 0.3
-#define GREEN_WEIGHT 0.59
-#define BLUE_WEIGHT 0.11
+#define RED_WEIGHT 0.2126
+#define GREEN_WEIGHT 0.7152
+#define BLUE_WEIGHT 0.0722
 
 // Function to convert an image to grayscale
 SDL_Surface* preprocess_image(SDL_Surface* surface) {
@@ -47,6 +47,38 @@ SDL_Surface* preprocess_image(SDL_Surface* surface) {
     SDL_UnlockSurface(grayscaleSurface);
 
     return grayscaleSurface;
+}
+
+Uint8 calculate_threshold(SDL_Surface* surface) {
+    if (surface == NULL) {
+        printf("Input surface is NULL\n");
+        return 0;
+    }
+
+    // Calculer le spectre des couleurs pour déterminer le seuil adaptatif
+    Uint64 pixelSum = 0;
+    Uint64 pixelCount = 0;
+
+    SDL_LockSurface(surface);
+
+    for (int y = 0; y < surface->h; y++) {
+        for (int x = 0; x < surface->w; x++) {
+            Uint32 pixel = ((Uint32*)surface->pixels)[y * (surface->pitch / 4) + x];
+            Uint8 r, g, b;
+            SDL_GetRGB(pixel, surface->format, &r, &g, &b);
+
+            // Utiliser une luminance standard (pondérations pour r, g, b)
+            Uint8 luminance = (Uint8)(0.2126 * r + 0.7152 * g + 0.0722 * b);
+            pixelSum += luminance;
+            pixelCount++;
+        }
+    }
+
+    // Calculer le seuil adaptatif comme moyenne des luminances
+    Uint8 threshold = (Uint8)(pixelSum / pixelCount);
+
+    SDL_UnlockSurface(surface);
+    return threshold;
 }
 
 // Function to convert a grayscale image to black and white
@@ -232,7 +264,7 @@ int compare(const void *a, const void *b) {
     return (*(Uint8 *)a - *(Uint8 *)b);
 }
 
-// function to applu median filter
+// function to apply median filter
 SDL_Surface *apply_median_filter(SDL_Surface *surface, int kernelSize) {
     if (surface == NULL || kernelSize < 3 || kernelSize % 2 == 0) return NULL;
 
@@ -314,5 +346,49 @@ SDL_Surface *apply_median_filter(SDL_Surface *surface, int kernelSize) {
 
     return result;
 }
+
+SDL_Surface* invert_colors(SDL_Surface* surface) {
+    if (surface == NULL) {
+        printf("Input surface is NULL\n");
+        return NULL; // Gérer le cas où l'entrée est NULL
+    }
+
+    // Créer une nouvelle surface pour l'image avec les couleurs inversées
+    SDL_Surface* invertedSurface = SDL_CreateRGBSurface(0, surface->w, surface->h, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
+    if (invertedSurface == NULL) {
+        printf("Unable to create inverted surface: %s\n", SDL_GetError());
+        return NULL;
+    }
+
+    // Verrouiller les surfaces pour un accès direct aux pixels
+    SDL_LockSurface(surface);
+    SDL_LockSurface(invertedSurface);
+
+    // Parcourir chaque pixel
+    for (int y = 0; y < surface->h; y++) {
+        for (int x = 0; x < surface->w; x++) {
+            // Obtenir la couleur du pixel
+            Uint32 pixel = ((Uint32*)surface->pixels)[y * (surface->pitch / 4) + x];
+            Uint8 r, g, b;
+            SDL_GetRGB(pixel, surface->format, &r, &g, &b);
+
+            // Inverser les couleurs (255 - composante)
+            Uint8 invertedR = 255 - r;
+            Uint8 invertedG = 255 - g;
+            Uint8 invertedB = 255 - b;
+
+            // Mapper les couleurs inversées dans le format de la nouvelle surface
+            Uint32 invertedPixel = SDL_MapRGB(invertedSurface->format, invertedR, invertedG, invertedB);
+            ((Uint32*)invertedSurface->pixels)[y * (invertedSurface->pitch / 4) + x] = invertedPixel;
+        }
+    }
+
+    // Déverrouiller les surfaces
+    SDL_UnlockSurface(surface);
+    SDL_UnlockSurface(invertedSurface);
+
+    return invertedSurface;
+}
+
 
 
