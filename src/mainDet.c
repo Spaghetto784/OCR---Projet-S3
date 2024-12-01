@@ -33,16 +33,16 @@ int main(int argc, char *argv[])
 
 
     SDL_Surface *grayscale_image = preprocess_image(original_image);
-    Uint8 threshold = calculate_threshold(original_image);
+    //Uint8 threshold = calculate_threshold(original_image);
     SDL_FreeSurface(original_image); // Free the original image after conversion
 
     SDL_Surface *bw_image = convert_to_bw(grayscale_image, 140);
     SDL_FreeSurface(grayscale_image); // Free the grayscale image after conversion 
 
 /*
-     SDL_Surface *filtered_image = apply_median_filter(original_image, 5);
+    //SDL_Surface *filtered_image = apply_median_filter(original_image, 5);
     //filtered_image = apply_gaussian_filter(filtered_image, 5, 1.0f);
-    SDL_Surface *grayscale_image = preprocess_image(filtered_image);
+    SDL_Surface *grayscale_image = preprocess_image(original_image);
     Uint8 threshold = calculate_threshold(original_image);
     SDL_FreeSurface(original_image); // Free the original image after conversion
 
@@ -52,8 +52,8 @@ int main(int argc, char *argv[])
     
     SDL_Surface *bw_image = convert_to_bw(grayscale_image, threshold);
     SDL_FreeSurface(grayscale_image); // Free the grayscale image after conversion
-    SDL_FreeSurface(filtered_image); // Free the original image after conversion */
-
+    //SDL_FreeSurface(filtered_image); // Free the original image after conversion 
+*/
     // Ask the user for a rotation angle
     int angle;
     printf("Enter the rotation angle (in degrees): ");
