@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
     }
 
     SDL_Surface *filtered_image = apply_median_filter(original_image, 5);
-    filtered_image = apply_gaussian_filter(filtered_image, 5, 1.0f);
+    //filtered_image = apply_gaussian_filter(filtered_image, 5, 1.0f);
     SDL_Surface *grayscale_image = preprocess_image(filtered_image);
     Uint8 threshold = calculate_threshold(original_image);
     SDL_FreeSurface(original_image); // Free the original image after conversion
