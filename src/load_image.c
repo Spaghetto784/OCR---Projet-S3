@@ -75,7 +75,7 @@ SDL_Surface *rotate_image(SDL_Surface *surface, int angle)
 
     // Fill the new surface with black as background color
     SDL_FillRect(rotated_surface, NULL,
-                 SDL_MapRGB(rotated_surface->format, 0, 0, 0));
+                 SDL_MapRGB(rotated_surface->format, 255, 255, 255));
 
     // Set the center of the original image and the new image
     int cx = original_width / 2;
