@@ -568,5 +568,8 @@ void detect(SDL_Surface *surface) {
         return;
     }
 
+    mkdir("letterGrid", 0777);
+    mkdir("letterList", 0777);
+
     detect_clusters(surface);
 }
