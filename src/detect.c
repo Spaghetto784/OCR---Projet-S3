@@ -382,10 +382,54 @@ void detect(SDL_Surface *surface)
 #include <stdio.h>
 #include <stdlib.h>
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
-#include <string.h>
-#include <sys/stat.h>  // Pour mkdir
-#include <errno.h>      // Pour EEXIST
+#include <sys/stat.h>  // Pour créer des dossiers
+#include <stdio.h>     // Pour les opérations sur les fichiers
+#include <math.h>
+
+// Calculer la distance entre deux points
+float distance(int x1, int y1, int x2, int y2) {
+    return sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
+}
+
+void save_cluster(SDL_Surface *surface, int minX, int minY, int maxX, int maxY, const char *folder, int x_index, int y_index) {
+    // Définir la largeur et la hauteur du cluster
+    int width = maxX - minX + 1;
+    int height = maxY - minY + 1;
+
+    // Créer une nouvelle surface pour le cluster
+    SDL_Surface *cluster_surface = SDL_CreateRGBSurface(0, width, height, surface->format->BitsPerPixel,
+                                                        surface->format->Rmask, surface->format->Gmask,
+                                                        surface->format->Bmask, surface->format->Amask);
+    if (!cluster_surface) {
+        printf("Erreur lors de la création de la surface pour le cluster : %s\n", SDL_GetError());
+        return;
+    }
+
+    // Copier les pixels du cluster dans la nouvelle surface
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            Uint32 pixel = ((Uint32 *)surface->pixels)[(minY + y) * surface->w + (minX + x)];
+            ((Uint32 *)cluster_surface->pixels)[y * width + x] = pixel;
+        }
+    }
+
+    // Générer un nom de fichier au format "lettre_xx_yy"
+    char filename[256];
+    snprintf(filename, sizeof(filename), "%s/lettre_%02d_%02d.png", folder, x_index, y_index);
+
+    // Sauvegarder la surface dans un fichier PNG
+    if (IMG_SavePNG(cluster_surface, filename) != 0) {
+        printf("Erreur lors de la sauvegarde du fichier PNG : %s\n", IMG_GetError());
+    } else {
+        printf("Cluster sauvegardé dans %s\n", filename);
+    }
+
+    // Libérer la surface créée
+    SDL_FreeSurface(cluster_surface);
+}
+
+
+
 
 // Fonction flood fill pour détecter les clusters
 void flood_fill(SDL_Surface *surface, int x, int y, int* visited, int width, int height, int* minX, int* minY, int* maxX, int* maxY) {
@@ -409,43 +453,6 @@ void flood_fill(SDL_Surface *surface, int x, int y, int* visited, int width, int
     }
 }
 
-// Fonction pour enregistrer les lettres extraites dans un fichier PNG
-void save_letter(SDL_Surface *surface, int minX, int minY, int maxX, int maxY, const char *folder, const char *filename) {
-    int width = maxX - minX + 1;
-    int height = maxY - minY + 1;
-    
-    // Créer une nouvelle surface pour la lettre
-    SDL_Surface *letterSurface = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32, surface->format->format);
-    if (!letterSurface) {
-        printf("Error creating letter surface: %s\n", SDL_GetError());
-        return;
-    }
-
-    // Copier la portion de l'image correspondant à la lettre dans la nouvelle surface
-    SDL_Rect srcRect = {minX, minY, width, height};
-    SDL_Rect dstRect = {0, 0, width, height};
-    SDL_BlitSurface(surface, &srcRect, letterSurface, &dstRect);
-
-    // Créer le répertoire si nécessaire
-    char dirPath[256];
-    snprintf(dirPath, sizeof(dirPath), "./%s", folder);
-
-
-    // Créer le chemin complet pour le fichier de sortie
-    char filePath[256];
-    snprintf(filePath, sizeof(filePath), "./%s/%s.png", folder, filename);
-
-    // Enregistrer la lettre comme image PNG
-    if (IMG_SavePNG(letterSurface, filePath) != 0) {
-        printf("Error saving PNG: %s\n", IMG_GetError());
-    } else {
-        printf("Saved letter to %s\n", filePath);
-    }
-
-    SDL_FreeSurface(letterSurface);
-}
-
-// Fonction pour détecter les clusters
 void detect_clusters(SDL_Surface *surface) {
     int width = surface->w;
     int height = surface->h;
@@ -453,13 +460,13 @@ void detect_clusters(SDL_Surface *surface) {
 
     int* visited = (int*)calloc(width * height, sizeof(int));
 
-    // Liste pour stocker les coordonnées des clusters
+    // Définition d'un cluster
     typedef struct {
         int minX, minY, maxX, maxY;
-        int area; // Taille de la lettre (en pixels)
+        int area;
+        int centerX, centerY; // Centre du cluster
     } Cluster;
 
-    // Tableau pour stocker les clusters détectés
     Cluster clusters[1000];
     int cluster_count = 0;
 
@@ -474,38 +481,69 @@ void detect_clusters(SDL_Surface *surface) {
                 flood_fill(surface, x, y, visited, width, height, &minX, &minY, &maxX, &maxY);
 
                 // Calculer l'aire (taille) du cluster
-                int area;
-                if ((maxX - minX + 1) * (maxX - minX + 1) > (maxY - minY + 1) * (maxY - minY + 1)){
-                    area = (maxX - minX + 1) * (maxX - minX + 1);
-                }
-                else{
-                    area = (maxY - minY + 1) * (maxY - minY + 1);
-                }
-                
+                int area = (maxX - minX + 1) * (maxY - minY + 1);
+
+                // Calculer le centre du cluster
+                int centerX = (minX + maxX) / 2;
+                int centerY = (minY + maxY) / 2;
 
                 // Ajouter ce cluster à la liste des clusters détectés
-                clusters[cluster_count++] = (Cluster){minX, minY, maxX, maxY, area};
+                clusters[cluster_count++] = (Cluster){minX, minY, maxX, maxY, area, centerX, centerY};
             }
         }
     }
 
-    // Seuil pour déterminer si une lettre est petite ou grande
-    int size_threshold = 200; // Ajustez ce seuil en fonction de la taille des lettres
+    // Seuil pour la distance entre les clusters
+    float distance_threshold = 20.0; // Ajustez selon vos besoins
 
-    // Analyser les clusters pour déterminer s'ils sont dans la grille ou dans la liste
+    int grid_x_index = 0, grid_y_index = 0; // Indices pour la grille
+    int list_x_index = 0, list_y_index = 0; // Indices pour la liste
+
+
     for (int i = 0; i < cluster_count; i++) {
-        // Classification des clusters : Grille ou Liste
-        const char *folder = (clusters[i].area > size_threshold) ? "letterGrid" : "letterList";
-        char filename[64];
-        snprintf(filename, sizeof(filename), "letter_%d", i);
+        int is_in_grid = 0;
 
-        // Enregistrer la lettre dans le répertoire approprié
-        save_letter(surface, clusters[i].minX, clusters[i].minY, clusters[i].maxX, clusters[i].maxY, folder, filename);
+        // Comparer avec les autres clusters
+        for (int j = 0; j < cluster_count; j++) {
+            if (i != j) {
+                float dist = distance(clusters[i].centerX, clusters[i].centerY, clusters[j].centerX, clusters[j].centerY);
+                if (dist < distance_threshold) {
+                    is_in_grid = 1; // Le cluster appartient à la grille
+                    break;
+                }
+            }
+        }
 
-        // Colorier le cluster pour le visualiser (rouge pour la grille, bleu pour la liste)
-        Uint32 color = (clusters[i].area > size_threshold) ? SDL_MapRGB(surface->format, 255, 0, 0) : SDL_MapRGB(surface->format, 0, 0, 255);
-        
-        // Dessiner un carré autour du cluster (en rouge ou bleu)
+        // Attribuer une couleur selon la classification
+        Uint32 color;
+        const char *folder;
+        int *x_index, *y_index; // Pointeurs vers les indices corrects
+
+        if (is_in_grid) {
+            color = SDL_MapRGB(surface->format, 255, 0, 0); // Rouge pour la grille
+            folder = "letterList";
+            x_index = &grid_x_index;
+            y_index = &grid_y_index;
+            printf("Cluster %d est une lettre dans la grille\n", i);
+        } else {
+            color = SDL_MapRGB(surface->format, 0, 0, 255); // Bleu pour la liste
+            folder = "letterGrid";
+            x_index = &list_x_index;
+            y_index = &list_y_index;
+            printf("Cluster %d est une lettre dans la liste\n", i);
+        }
+
+        // Sauvegarder le cluster dans le dossier approprié avec des indices séparés
+        save_cluster(surface, clusters[i].minX, clusters[i].minY, clusters[i].maxX, clusters[i].maxY, folder, *x_index, *y_index);
+
+        // Mise à jour des indices pour la grille ou la liste
+        (*x_index)++;
+        if (*x_index >= 10) { // Changez 10 en un autre nombre si nécessaire
+            *x_index = 0;
+            (*y_index)++;
+        }
+
+        // Dessiner un carré autour du cluster
         for (int x = clusters[i].minX; x <= clusters[i].maxX; x++) {
             if (clusters[i].minY >= 0 && clusters[i].minY < height) pixels[clusters[i].minY * width + x] = color; // Ligne du haut
             if (clusters[i].maxY >= 0 && clusters[i].maxY < height) pixels[clusters[i].maxY * width + x] = color; // Ligne du bas
@@ -516,8 +554,12 @@ void detect_clusters(SDL_Surface *surface) {
         }
     }
 
+
+
+
     free(visited);
 }
+
 
 // Fonction de détection avec grille/liste séparée
 void detect(SDL_Surface *surface) {
@@ -528,4 +570,3 @@ void detect(SDL_Surface *surface) {
 
     detect_clusters(surface);
 }
-
