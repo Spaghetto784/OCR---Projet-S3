@@ -415,7 +415,7 @@ void save_cluster(SDL_Surface *surface, int minX, int minY, int maxX, int maxY, 
 
     // Générer un nom de fichier au format "lettre_xx_yy"
     char filename[256];
-    snprintf(filename, sizeof(filename), "%s/lettre_%02d_%02d.png", folder, x_index, y_index);
+    snprintf(filename, sizeof(filename), "%s/lettre_%03d_%03d.png", folder, x_index, y_index);
 
     // Sauvegarder la surface dans un fichier PNG
     if (IMG_SavePNG(cluster_surface, filename) != 0) {
@@ -496,10 +496,6 @@ void detect_clusters(SDL_Surface *surface) {
     // Seuil pour la distance entre les clusters
     float distance_threshold = 20.0; // Ajustez selon vos besoins
 
-    int grid_x_index = 0, grid_y_index = 0; // Indices pour la grille
-    int list_x_index = 0, list_y_index = 0; // Indices pour la liste
-
-
     for (int i = 0; i < cluster_count; i++) {
         int is_in_grid = 0;
 
@@ -517,31 +513,19 @@ void detect_clusters(SDL_Surface *surface) {
         // Attribuer une couleur selon la classification
         Uint32 color;
         const char *folder;
-        int *x_index, *y_index; // Pointeurs vers les indices corrects
 
         if (is_in_grid) {
             color = SDL_MapRGB(surface->format, 255, 0, 0); // Rouge pour la grille
             folder = "letterList";
-            x_index = &grid_x_index;
-            y_index = &grid_y_index;
             printf("Cluster %d est une lettre dans la grille\n", i);
         } else {
             color = SDL_MapRGB(surface->format, 0, 0, 255); // Bleu pour la liste
             folder = "letterGrid";
-            x_index = &list_x_index;
-            y_index = &list_y_index;
             printf("Cluster %d est une lettre dans la liste\n", i);
         }
 
         // Sauvegarder le cluster dans le dossier approprié avec des indices séparés
-        save_cluster(surface, clusters[i].minX, clusters[i].minY, clusters[i].maxX, clusters[i].maxY, folder, *x_index, *y_index);
-
-        // Mise à jour des indices pour la grille ou la liste
-        (*x_index)++;
-        if (*x_index >= 10) { // Changez 10 en un autre nombre si nécessaire
-            *x_index = 0;
-            (*y_index)++;
-        }
+        save_cluster(surface, clusters[i].minX, clusters[i].minY, clusters[i].maxX, clusters[i].maxY, folder, clusters[i].centerX, clusters[i].centerY);
 
         // Dessiner un carré autour du cluster
         for (int x = clusters[i].minX; x <= clusters[i].maxX; x++) {
@@ -560,6 +544,103 @@ void detect_clusters(SDL_Surface *surface) {
     free(visited);
 }
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <dirent.h>
+#include <ctype.h>
+
+#define MAX_FILES 1000
+#define MAX_FILENAME_LENGTH 1024  // Increased buffer size for file paths
+
+// Struct to hold file information and its coordinates
+typedef struct {
+    int x;
+    int y;
+    char filename[MAX_FILENAME_LENGTH];
+} FileInfo;
+
+// Comparison function for sorting files based on coordinates
+int compare_files(const void *a, const void *b) {
+    FileInfo *fileA = (FileInfo *)a;
+    FileInfo *fileB = (FileInfo *)b;
+    
+    if (fileA->x != fileB->x) {
+        return fileA->x - fileB->x;  // Sort by x first
+    } else {
+        return fileA->y - fileB->y;  // Then sort by y
+    }
+}
+
+// Function to extract coordinates from the filename
+int extract_coordinates(const char *filename, int *x, int *y) {
+    // Filename format: lettre_xxx_yyy.png
+    return sscanf(filename, "lettre_%d_%d.png", x, y);
+}
+
+// Function to rename files in the directory
+void reformat_filenames(const char *folder_path) {
+    DIR *dir;
+    struct dirent *entry;
+    FileInfo files[MAX_FILES];
+    int file_count = 0;
+
+    // Open directory
+    dir = opendir(folder_path);
+    if (dir == NULL) {
+        perror("Failed to open directory");
+        return;
+    }
+
+    // Read files from the directory
+    while ((entry = readdir(dir)) != NULL) {
+        // Skip . and .. directories
+        if (entry->d_name[0] == '.') continue;
+        
+        int x, y;
+        if (extract_coordinates(entry->d_name, &x, &y) == 2) {
+            // Store file information if it matches the pattern
+            files[file_count].x = x;
+            files[file_count].y = y;
+            strncpy(files[file_count].filename, entry->d_name, MAX_FILENAME_LENGTH);
+            file_count++;
+        }
+    }
+    closedir(dir);
+
+    // Sort the files based on their coordinates
+    qsort(files, file_count, sizeof(FileInfo), compare_files);
+
+    // Rename files based on sorted order
+    for (int i = 0; i < file_count; i++) {
+        char new_filename[MAX_FILENAME_LENGTH];
+        // Create a sequential name based on the sorted order
+        snprintf(new_filename, MAX_FILENAME_LENGTH, "letter_%02d_%02d.png", i / 10, i % 10);
+        
+        // Construct full paths with checks
+        char old_path[MAX_FILENAME_LENGTH];
+        char new_path[MAX_FILENAME_LENGTH];
+        
+        // Ensure the total length doesn't exceed MAX_FILENAME_LENGTH
+        if (snprintf(old_path, MAX_FILENAME_LENGTH, "%s/%s", folder_path, files[i].filename) >= MAX_FILENAME_LENGTH) {
+            fprintf(stderr, "Path too long for file '%s'. Skipping rename.\n", files[i].filename);
+            continue;
+        }
+        
+        if (snprintf(new_path, MAX_FILENAME_LENGTH, "%s/%s", folder_path, new_filename) >= MAX_FILENAME_LENGTH) {
+            fprintf(stderr, "Path too long for new filename '%s'. Skipping rename.\n", new_filename);
+            continue;
+        }
+        
+        // Rename the file
+        if (rename(old_path, new_path) == 0) {
+            printf("Renamed '%s' to '%s'\n", files[i].filename, new_filename);
+        } else {
+            perror("Error renaming file");
+        }
+    }
+}
+
 
 // Fonction de détection avec grille/liste séparée
 void detect(SDL_Surface *surface) {
@@ -567,9 +648,14 @@ void detect(SDL_Surface *surface) {
         printf("Unsupported image format for grayscale conversion.\n");
         return;
     }
+    const char *gridPath = "letterGrid";
+    const char *listPath = "letterList";
 
-    mkdir("letterGrid", 0777);
-    mkdir("letterList", 0777);
+    mkdir(gridPath, 0777);
+    mkdir(listPath, 0777);
 
     detect_clusters(surface);
+
+    reformat_filenames(gridPath);
+    reformat_filenames(listPath);
 }
