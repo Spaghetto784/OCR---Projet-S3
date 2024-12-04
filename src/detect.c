@@ -392,11 +392,11 @@ float distance(int x1, int y1, int x2, int y2) {
 }
 
 void save_cluster(SDL_Surface *surface, int minX, int minY, int maxX, int maxY, const char *folder, int x_index, int y_index) {
-    // Définir la largeur et la hauteur du cluster
+    // Dimensions originales du cluster
     int width = maxX - minX + 1;
     int height = maxY - minY + 1;
 
-    // Créer une nouvelle surface pour le cluster
+    // Créer une surface temporaire pour le cluster
     SDL_Surface *cluster_surface = SDL_CreateRGBSurface(0, width, height, surface->format->BitsPerPixel,
                                                         surface->format->Rmask, surface->format->Gmask,
                                                         surface->format->Bmask, surface->format->Amask);
@@ -405,7 +405,7 @@ void save_cluster(SDL_Surface *surface, int minX, int minY, int maxX, int maxY, 
         return;
     }
 
-    // Copier les pixels du cluster dans la nouvelle surface
+    // Copier les pixels originaux dans la surface temporaire
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             Uint32 pixel = ((Uint32 *)surface->pixels)[(minY + y) * surface->w + (minX + x)];
@@ -413,19 +413,42 @@ void save_cluster(SDL_Surface *surface, int minX, int minY, int maxX, int maxY, 
         }
     }
 
-    // Générer un nom de fichier au format "lettre_xx_yy"
+    // Créer une surface de 24x24 pixels pour redimensionner le cluster
+    int target_size = 24;
+    SDL_Surface *resized_surface = SDL_CreateRGBSurface(0, target_size, target_size, surface->format->BitsPerPixel,
+                                                        surface->format->Rmask, surface->format->Gmask,
+                                                        surface->format->Bmask, surface->format->Amask);
+    if (!resized_surface) {
+        printf("Erreur lors de la création de la surface redimensionnée : %s\n", SDL_GetError());
+        SDL_FreeSurface(cluster_surface);
+        return;
+    }
+
+    // Redimensionner le cluster vers la surface 24x24
+    for (int y = 0; y < target_size; y++) {
+        for (int x = 0; x < target_size; x++) {
+            // Calculer la position correspondante dans l'image d'origine
+            int src_x = minX + x * width / target_size;
+            int src_y = minY + y * height / target_size;
+            Uint32 pixel = ((Uint32 *)surface->pixels)[src_y * surface->w + src_x];
+            ((Uint32 *)resized_surface->pixels)[y * target_size + x] = pixel;
+        }
+    }
+
+    // Générer le nom du fichier au format "lettre_xx_yy.png"
     char filename[256];
     snprintf(filename, sizeof(filename), "%s/lettre_%03d_%03d.png", folder, x_index, y_index);
 
-    // Sauvegarder la surface dans un fichier PNG
-    if (IMG_SavePNG(cluster_surface, filename) != 0) {
+    // Sauvegarder la surface redimensionnée dans un fichier PNG
+    if (IMG_SavePNG(resized_surface, filename) != 0) {
         printf("Erreur lors de la sauvegarde du fichier PNG : %s\n", IMG_GetError());
     } else {
         printf("Cluster sauvegardé dans %s\n", filename);
     }
 
-    // Libérer la surface créée
+    // Libérer les surfaces créées
     SDL_FreeSurface(cluster_surface);
+    SDL_FreeSurface(resized_surface);
 }
 
 
@@ -513,19 +536,22 @@ void detect_clusters(SDL_Surface *surface) {
         // Attribuer une couleur selon la classification
         Uint32 color;
         const char *folder;
+        int ratio;
 
         if (is_in_grid) {
             color = SDL_MapRGB(surface->format, 255, 0, 0); // Rouge pour la grille
             folder = "letterList";
-            printf("Cluster %d est une lettre dans la grille\n", i);
+            //printf("Cluster %d est une lettre dans la grille\n", i);
+            ratio = 0;
         } else {
             color = SDL_MapRGB(surface->format, 0, 0, 255); // Bleu pour la liste
             folder = "letterGrid";
-            printf("Cluster %d est une lettre dans la liste\n", i);
+            //printf("Cluster %d est une lettre dans la liste\n", i);
+            ratio = 10;
         }
 
         // Sauvegarder le cluster dans le dossier approprié avec des indices séparés
-        save_cluster(surface, clusters[i].minX, clusters[i].minY, clusters[i].maxX, clusters[i].maxY, folder, clusters[i].centerX, clusters[i].centerY);
+        save_cluster(surface, clusters[i].minX-ratio, clusters[i].minY-ratio, clusters[i].maxX+ratio, clusters[i].maxY+ratio, folder, clusters[i].centerX, clusters[i].centerY);
 
         // Dessiner un carré autour du cluster
         for (int x = clusters[i].minX; x <= clusters[i].maxX; x++) {
@@ -537,10 +563,6 @@ void detect_clusters(SDL_Surface *surface) {
             if (clusters[i].maxX >= 0 && clusters[i].maxX < width) pixels[y * width + clusters[i].maxX] = color; // Colonne de droite
         }
     }
-
-
-
-
     free(visited);
 }
 
@@ -548,100 +570,106 @@ void detect_clusters(SDL_Surface *surface) {
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
-#include <ctype.h>
+#include <errno.h>
 
-#define MAX_FILES 1000
-#define MAX_FILENAME_LENGTH 1024  // Increased buffer size for file paths
+#define THRESHOLD 10 // Threshold for determining a new row
 
-// Struct to hold file information and its coordinates
+// Structure to hold information about a file
 typedef struct {
+    char original_name[256];
     int x;
     int y;
-    char filename[MAX_FILENAME_LENGTH];
-} FileInfo;
+} LetterFile;
 
-// Comparison function for sorting files based on coordinates
-int compare_files(const void *a, const void *b) {
-    FileInfo *fileA = (FileInfo *)a;
-    FileInfo *fileB = (FileInfo *)b;
-    
-    if (fileA->x != fileB->x) {
-        return fileA->x - fileB->x;  // Sort by x first
-    } else {
-        return fileA->y - fileB->y;  // Then sort by y
+// Comparator for sorting by y first, then x
+int compareFile(const void *a, const void *b) {
+    LetterFile *fileA = (LetterFile *)a;
+    LetterFile *fileB = (LetterFile *)b;
+
+    if (fileA->y != fileB->y) {
+        return fileA->y - fileB->y; // Sort by y-coordinate
     }
+    return fileA->x - fileB->x; // Sort by x-coordinate
 }
 
-// Function to extract coordinates from the filename
-int extract_coordinates(const char *filename, int *x, int *y) {
-    // Filename format: lettre_xxx_yyy.png
-    return sscanf(filename, "lettre_%d_%d.png", x, y);
+// Function to parse the filename and extract x and y coordinates
+int parse_filename(const char *filename, int *x, int *y) {
+    return sscanf(filename, "lettre_%d_%d.png", x, y) == 2;
 }
 
-// Function to rename files in the directory
-void reformat_filenames(const char *folder_path) {
-    DIR *dir;
-    struct dirent *entry;
-    FileInfo files[MAX_FILES];
+// Function to rename files
+void rename_files(const char *directory) {
+    DIR *dir = opendir(directory);
+    if (!dir) {
+        perror("opendir");
+        exit(EXIT_FAILURE);
+    }
+
+    LetterFile files[1000]; // Array to store file information
     int file_count = 0;
 
-    // Open directory
-    dir = opendir(folder_path);
-    if (dir == NULL) {
-        perror("Failed to open directory");
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        // Process files starting with "lettre_" and ending with ".png"
+        if (strncmp(entry->d_name, "lettre_", 7) == 0 && strstr(entry->d_name, ".png")) {
+            int x, y;
+            if (parse_filename(entry->d_name, &x, &y)) {
+                strcpy(files[file_count].original_name, entry->d_name);
+                files[file_count].x = x;
+                files[file_count].y = y;
+                file_count++;
+                printf("DEBUG: Added file: %s (x=%d, y=%d)\n", entry->d_name, x, y);
+            }
+        }
+    }
+
+    closedir(dir);
+
+    // Check if any files were collected
+    if (file_count == 0) {
+        printf("No files to process in directory: %s\n", directory);
         return;
     }
 
-    // Read files from the directory
-    while ((entry = readdir(dir)) != NULL) {
-        // Skip . and .. directories
-        if (entry->d_name[0] == '.') continue;
-        
-        int x, y;
-        if (extract_coordinates(entry->d_name, &x, &y) == 2) {
-            // Store file information if it matches the pattern
-            files[file_count].x = x;
-            files[file_count].y = y;
-            strncpy(files[file_count].filename, entry->d_name, MAX_FILENAME_LENGTH);
-            file_count++;
-        }
-    }
-    closedir(dir);
+    printf("DEBUG: Total files collected: %d\n", file_count);
 
-    // Sort the files based on their coordinates
-    qsort(files, file_count, sizeof(FileInfo), compare_files);
+    // Sort files by y-coordinate first, then x-coordinate
+    qsort(files, file_count, sizeof(LetterFile), compareFile);
 
-    // Rename files based on sorted order
+    // Rename files based on the new naming scheme
+    int current_row = 0;
+    int last_y = files[0].y;
+    int file_in_row = 0; // Track the file position in the current row
+
     for (int i = 0; i < file_count; i++) {
-        char new_filename[MAX_FILENAME_LENGTH];
-        // Create a sequential name based on the sorted order
-        snprintf(new_filename, MAX_FILENAME_LENGTH, "letter_%02d_%02d.png", i / 10, i % 10);
-        
-        // Construct full paths with checks
-        char old_path[MAX_FILENAME_LENGTH];
-        char new_path[MAX_FILENAME_LENGTH];
-        
-        // Ensure the total length doesn't exceed MAX_FILENAME_LENGTH
-        if (snprintf(old_path, MAX_FILENAME_LENGTH, "%s/%s", folder_path, files[i].filename) >= MAX_FILENAME_LENGTH) {
-            fprintf(stderr, "Path too long for file '%s'. Skipping rename.\n", files[i].filename);
-            continue;
+        // Increment the row when y changes significantly
+        if (abs(files[i].y - last_y) > THRESHOLD) {
+            current_row++;       // Move to the next row
+            last_y = files[i].y; // Update the reference y-coordinate
+            file_in_row = 0;     // Reset file position for the new row
         }
-        
-        if (snprintf(new_path, MAX_FILENAME_LENGTH, "%s/%s", folder_path, new_filename) >= MAX_FILENAME_LENGTH) {
-            fprintf(stderr, "Path too long for new filename '%s'. Skipping rename.\n", new_filename);
-            continue;
-        }
-        
+
+        // Create the new filename
+        char new_name[256];
+        snprintf(new_name, sizeof(new_name), "lettre_%02d_%02d.png", current_row, file_in_row);
+
+        // Build full paths for renaming
+        char old_path[512], new_path[512];
+        snprintf(old_path, sizeof(old_path), "%s/%s", directory, files[i].original_name);
+        snprintf(new_path, sizeof(new_path), "%s/%s", directory, new_name);
+
         // Rename the file
-        if (rename(old_path, new_path) == 0) {
-            printf("Renamed '%s' to '%s'\n", files[i].filename, new_filename);
+        if (rename(old_path, new_path) != 0) {
+            perror("rename");
         } else {
-            perror("Error renaming file");
+            printf("Renamed %s to %s\n", old_path, new_name);
         }
+
+        // Increment the file position in the row
+        file_in_row++;
     }
+
 }
-
-
 // Fonction de détection avec grille/liste séparée
 void detect(SDL_Surface *surface) {
     if (surface->format->BytesPerPixel != 3 && surface->format->BytesPerPixel != 4) {
@@ -656,6 +684,6 @@ void detect(SDL_Surface *surface) {
 
     detect_clusters(surface);
 
-    reformat_filenames(gridPath);
-    reformat_filenames(listPath);
+    rename_files(gridPath);
+    rename_files(listPath);
 }
