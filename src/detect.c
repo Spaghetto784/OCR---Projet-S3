@@ -656,6 +656,6 @@ void detect(SDL_Surface *surface) {
 
     detect_clusters(surface);
 
-    //reformat_filenames(gridPath);
+    reformat_filenames(gridPath);
     reformat_filenames(listPath);
 }
