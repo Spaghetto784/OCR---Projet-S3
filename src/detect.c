@@ -385,6 +385,7 @@ void detect(SDL_Surface *surface)
 #include <sys/stat.h>  // Pour créer des dossiers
 #include <stdio.h>     // Pour les opérations sur les fichiers
 #include <math.h>
+#define THRESHOLD 10 // Threshold for determining a new row
 
 // Calculer la distance entre deux points
 float distance(int x1, int y1, int x2, int y2) {
@@ -392,20 +393,26 @@ float distance(int x1, int y1, int x2, int y2) {
 }
 
 void save_cluster(SDL_Surface *surface, int minX, int minY, int maxX, int maxY, const char *folder, int x_index, int y_index) {
-    // Dimensions originales du cluster
+    // Verify input dimensions are valid
+    if (minX < 0 || minY < 0 || maxX >= surface->w || maxY >= surface->h || minX > maxX || minY > maxY) {
+        printf("Invalid cluster dimensions.\n");
+        return;
+    }
+
+    // Dimensions of the cluster
     int width = maxX - minX + 1;
     int height = maxY - minY + 1;
 
-    // Créer une surface temporaire pour le cluster
+    // Create a surface for the cluster
     SDL_Surface *cluster_surface = SDL_CreateRGBSurface(0, width, height, surface->format->BitsPerPixel,
                                                         surface->format->Rmask, surface->format->Gmask,
                                                         surface->format->Bmask, surface->format->Amask);
     if (!cluster_surface) {
-        printf("Erreur lors de la création de la surface pour le cluster : %s\n", SDL_GetError());
+        printf("Error creating cluster surface: %s\n", SDL_GetError());
         return;
     }
 
-    // Copier les pixels originaux dans la surface temporaire
+    // Copy pixels from the original surface to the cluster surface
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             Uint32 pixel = ((Uint32 *)surface->pixels)[(minY + y) * surface->w + (minX + x)];
@@ -413,42 +420,64 @@ void save_cluster(SDL_Surface *surface, int minX, int minY, int maxX, int maxY, 
         }
     }
 
-    // Créer une surface de 24x24 pixels pour redimensionner le cluster
+    // Create a 24x24 white target surface
     int target_size = 24;
-    SDL_Surface *resized_surface = SDL_CreateRGBSurface(0, target_size, target_size, surface->format->BitsPerPixel,
-                                                        surface->format->Rmask, surface->format->Gmask,
-                                                        surface->format->Bmask, surface->format->Amask);
-    if (!resized_surface) {
-        printf("Erreur lors de la création de la surface redimensionnée : %s\n", SDL_GetError());
+    SDL_Surface *final_surface = SDL_CreateRGBSurface(0, target_size, target_size, surface->format->BitsPerPixel,
+                                                      surface->format->Rmask, surface->format->Gmask,
+                                                      surface->format->Bmask, surface->format->Amask);
+    if (!final_surface) {
+        printf("Error creating target surface: %s\n", SDL_GetError());
         SDL_FreeSurface(cluster_surface);
         return;
     }
 
-    // Redimensionner le cluster vers la surface 24x24
-    for (int y = 0; y < target_size; y++) {
-        for (int x = 0; x < target_size; x++) {
-            // Calculer la position correspondante dans l'image d'origine
-            int src_x = minX + x * width / target_size;
-            int src_y = minY + y * height / target_size;
-            Uint32 pixel = ((Uint32 *)surface->pixels)[src_y * surface->w + src_x];
-            ((Uint32 *)resized_surface->pixels)[y * target_size + x] = pixel;
+    // Fill the target surface with white
+    Uint32 white_pixel = SDL_MapRGB(final_surface->format, 255, 255, 255);
+    SDL_FillRect(final_surface, NULL, white_pixel);
+
+    // Calculate the dimensions for resizing while maintaining the aspect ratio
+    int available_height = target_size - 6; // 3 pixels margin at the top and bottom
+    int available_width = target_size;
+
+    float scale = fmin((float)available_height / height, (float)available_width / width);
+    int resized_width = width * scale;
+    int resized_height = height * scale;
+
+    // Calculate the centered position for pasting the resized cluster
+    int paste_x = (target_size - resized_width) / 2;
+    int paste_y = 3; // 3 pixels from the top
+
+    // Resize and paste the cluster into the white 24x24 surface
+    for (int y = 0; y < resized_height; y++) {
+        for (int x = 0; x < resized_width; x++) {
+            // Calculate the source position in the original cluster
+            int src_x = x / scale;
+            int src_y = y / scale;
+
+            // Ensure the source position is within bounds
+            if (src_x < width && src_y < height) {
+                Uint32 pixel = ((Uint32 *)cluster_surface->pixels)[src_y * width + src_x];
+                ((Uint32 *)final_surface->pixels)[(paste_y + y) * target_size + (paste_x + x)] = pixel;
+            }
         }
     }
 
-    // Générer le nom du fichier au format "lettre_xx_yy.png"
+
+
+    // Generate the filename
     char filename[256];
     snprintf(filename, sizeof(filename), "%s/lettre_%03d_%03d.png", folder, x_index, y_index);
 
-    // Sauvegarder la surface redimensionnée dans un fichier PNG
-    if (IMG_SavePNG(resized_surface, filename) != 0) {
-        printf("Erreur lors de la sauvegarde du fichier PNG : %s\n", IMG_GetError());
+    // Save the 24x24 image
+    if (IMG_SavePNG(final_surface, filename) != 0) {
+        printf("Error saving PNG: %s\n", IMG_GetError());
     } else {
-        printf("Cluster sauvegardé dans %s\n", filename);
+        printf("Cluster saved in %s\n", filename);
     }
 
-    // Libérer les surfaces créées
+    // Free surfaces
     SDL_FreeSurface(cluster_surface);
-    SDL_FreeSurface(resized_surface);
+    SDL_FreeSurface(final_surface);
 }
 
 
@@ -518,6 +547,7 @@ void detect_clusters(SDL_Surface *surface) {
 
     // Seuil pour la distance entre les clusters
     float distance_threshold = 20.0; // Ajustez selon vos besoins
+    int lastY = clusters[0].centerY;
 
     for (int i = 0; i < cluster_count; i++) {
         int is_in_grid = 0;
@@ -536,22 +566,23 @@ void detect_clusters(SDL_Surface *surface) {
         // Attribuer une couleur selon la classification
         Uint32 color;
         const char *folder;
-        int ratio;
 
         if (is_in_grid) {
             color = SDL_MapRGB(surface->format, 255, 0, 0); // Rouge pour la grille
             folder = "letterList";
             //printf("Cluster %d est une lettre dans la grille\n", i);
-            ratio = 0;
         } else {
             color = SDL_MapRGB(surface->format, 0, 0, 255); // Bleu pour la liste
             folder = "letterGrid";
             //printf("Cluster %d est une lettre dans la liste\n", i);
-            ratio = 10;
+        }
+        if (clusters[i].centerY - lastY >= 10){
+            lastY = clusters[i].centerY;
         }
 
         // Sauvegarder le cluster dans le dossier approprié avec des indices séparés
-        save_cluster(surface, clusters[i].minX-ratio, clusters[i].minY-ratio, clusters[i].maxX+ratio, clusters[i].maxY+ratio, folder, clusters[i].centerX, clusters[i].centerY);
+        save_cluster(surface, clusters[i].minX, clusters[i].minY, clusters[i].maxX, clusters[i].maxY, folder, clusters[i].centerX, lastY);
+
 
         // Dessiner un carré autour du cluster
         for (int x = clusters[i].minX; x <= clusters[i].maxX; x++) {
@@ -651,7 +682,7 @@ void rename_files(const char *directory) {
 
         // Create the new filename
         char new_name[256];
-        snprintf(new_name, sizeof(new_name), "lettre_%02d_%02d.png", current_row, file_in_row);
+        snprintf(new_name, sizeof(new_name), "%02d_%02d_%03d_%03d.png", current_row, file_in_row, files[i].x, files[i].y);
 
         // Build full paths for renaming
         char old_path[512], new_path[512];
@@ -670,6 +701,159 @@ void rename_files(const char *directory) {
     }
 
 }
+
+void traceLigne(SDL_Surface *surface, int x1, int y1, int x2, int y2, int epaisseur) {
+    // Vérifie si la surface est valide
+    if (!surface) {
+        printf("Surface invalide.\n");
+        return;
+    }
+
+    // Verrouille la surface si nécessaire
+    if (SDL_MUSTLOCK(surface) && SDL_LockSurface(surface) != 0) {
+        printf("Erreur lors du verrouillage de la surface : %s\n", SDL_GetError());
+        return;
+    }
+
+    // Détermine les différences entre les coordonnées
+    int dx = abs(x2 - x1);
+    int dy = abs(y2 - y1);
+    int sx = (x1 < x2) ? 1 : -1;
+    int sy = (y1 < y2) ? 1 : -1;
+
+    int err = dx - dy;
+
+    // Fonction pour dessiner un pixel avec une certaine déviation autour de la ligne
+    void dessinerPixel(int x, int y) {
+        if (x >= 0 && x < surface->w && y >= 0 && y < surface->h) {
+            Uint32 *pixels = (Uint32 *)surface->pixels;
+            Uint32 pixel_color = SDL_MapRGB(surface->format, 0, 0, 0); // Couleur noire
+            pixels[y * surface->w + x] = pixel_color;
+        }
+    }
+
+    // Trace la ligne avec épaisseur
+    while (1) {
+        // Trace la ligne principale
+        dessinerPixel(x1, y1);
+
+        // Dessine des pixels autour de la ligne pour l'épaisseur
+        for (int i = -epaisseur / 2; i <= epaisseur / 2; i++) {
+            for (int j = -epaisseur / 2; j <= epaisseur / 2; j++) {
+                if (i != 0 || j != 0) {  // Evite de redessiner le pixel central
+                    dessinerPixel(x1 + i, y1 + j);
+                }
+            }
+        }
+
+        // Vérifie si la ligne est terminée
+        if (x1 == x2 && y1 == y2) {
+            break;
+        }
+
+        int e2 = 2 * err;
+
+        // Mise à jour de x et y en fonction de l'erreur
+        if (e2 > -dy) {
+            err -= dy;
+            x1 += sx;
+        }
+        if (e2 < dx) {
+            err += dx;
+            y1 += sy;
+        }
+    }
+
+    // Déverrouille la surface si nécessaire
+    if (SDL_MUSTLOCK(surface)) {
+        SDL_UnlockSurface(surface);
+    }
+}
+
+
+#include <SDL2/SDL.h>
+#include <stdio.h>
+
+// Fonction pour tracer des lignes à partir d'une liste d'entiers
+void traceLignesDepuisListe(SDL_Surface *surface, int *liste, int taille) {
+    if (!surface) {
+        printf("Surface invalide.\n");
+        return;
+    }
+    if (taille < 4) {
+        printf("La liste doit contenir au moins 4 entiers pour tracer une ligne.\n");
+        return;
+    }
+    if (taille % 2 != 0) {
+        printf("La liste doit contenir un nombre pair d'entiers et 4.\n");
+        return;
+    }
+
+    // Parcourt la liste pour tracer des lignes entre chaque couple de points
+    for (int i = 0; i < taille - 2; i += 4) {
+        int x1 = liste[i];
+        int y1 = liste[i + 1];
+        int x2 = liste[i + 2];
+        int y2 = liste[i + 3];
+
+        // Trace une ligne entre les points (x1, y1) et (x2, y2)
+        traceLigne(surface, x1, y1, x2, y2, 3);
+    }
+}
+
+
+#include <SDL2/SDL.h>
+#include <dirent.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void extraireCoordonneesDepuisFichiers(const char *dossier, int *listedebase, int tailleListe, int **listeResultat, int *tailleListeResultat) {
+    DIR *dir = opendir(dossier);
+    if (!dir) {
+        printf("Erreur lors de l'ouverture du dossier : %s\n", strerror(errno));
+        return;
+    }
+
+    struct dirent *entry;
+    
+    // Parcours de chaque paire de coordonnées dans listedebase
+    for (int i = 0; i < tailleListe; i += 2) {
+        int x1 = listedebase[i];
+        int y1 = listedebase[i + 1];
+
+        // Recherche dans le dossier un fichier qui commence par x1_y1
+        rewinddir(dir);  // On réinitialise la position du dossier pour chaque itération
+        while ((entry = readdir(dir)) != NULL) {
+            // Vérifier si le fichier a l'extension .png et commence par x1_y1
+            if (strstr(entry->d_name, ".png") != NULL) {
+                int x2, y2;
+                // Exemple de nom de fichier : "03_01_086_179.png"
+                if (sscanf(entry->d_name, "%d_%d_%d_%d.png", &x1, &y1, &x2, &y2) == 4) {
+                    // Vérifier si le fichier correspond aux coordonnées x1, y1
+                    if (x1 == listedebase[i] && y1 == listedebase[i + 1]) {
+                        // Ajouter les coordonnées suivantes (x2, y2) à la nouvelle liste
+                        *listeResultat = realloc(*listeResultat, (*tailleListeResultat + 2) * sizeof(int));
+                        if (*listeResultat == NULL) {
+                            printf("Erreur d'allocation mémoire\n");
+                            closedir(dir);
+                            return;
+                        }
+
+                        (*listeResultat)[*tailleListeResultat] = x2;    // Ajoute x2
+                        (*listeResultat)[*tailleListeResultat + 1] = y2; // Ajoute y2
+                        *tailleListeResultat += 2; // Augmente la taille de la liste
+                        break; // Sortir dès que le fichier correspondant est trouvé
+                    }
+                }
+            }
+        }
+    }
+
+    closedir(dir);
+}
+
+
 // Fonction de détection avec grille/liste séparée
 void detect(SDL_Surface *surface) {
     if (surface->format->BytesPerPixel != 3 && surface->format->BytesPerPixel != 4) {
@@ -686,4 +870,62 @@ void detect(SDL_Surface *surface) {
 
     rename_files(gridPath);
     rename_files(listPath);
+
+    /*
+    int listedebaselevel11[] = {
+    0, 2, 0, 11,   // 0, 2 -> 0, 11
+    2, 4, 2, 9,    // 2, 4 -> 2, 9
+    3, 3, 3, 7,    // 3, 3 -> 3, 7
+    4, 2, 7, 2,    // 4, 2 -> 7, 2
+    8, 3, 4, 3,    // 8, 3 -> 4, 3
+    5, 5, 10, 5,   // 5, 5 -> 10, 5
+    8, 6, 13, 11,  // 8, 6 -> 13, 11
+    7, 10, 3, 10,  // 7, 10 -> 3, 10
+    9, 8, 9, 11,   // 9, 8 -> 9, 11
+    2, 4, 2, 9,    // 2, 4 -> 2, 9
+    12, 8, 12, 0,  // 12, 8 -> 12, 0
+    10, 0, 1, 0,   // 10, 0 -> 1, 0
+    11, 8, 11, 0   // 11, 8 -> 11, 0
+};
+    int tailleListeBaselevel11 = sizeof(listedebaselevel11) / sizeof(listedebaselevel11[0]);
+
+    // Liste de coordonnées résultantes
+    int *listeCoordonneeslevel11 = NULL;
+    int tailleListeCoordonneeslevel11 = 0;
+
+    // Extraire les coordonnées depuis les fichiers
+    extraireCoordonneesDepuisFichiers(gridPath, listedebaselevel11, tailleListeBaselevel11, &listeCoordonneeslevel11, &tailleListeCoordonneeslevel11);
+    traceLignesDepuisListe(surface, listeCoordonneeslevel11, tailleListeCoordonneeslevel11);
+    */
+
+   /*
+    int listedebaselevel12[] = {
+    5, 9, 5, 15,    // 3, 3 -> 3, 7
+    0, 10, 4, 6,    // 4, 2 -> 7, 2
+    1, 16, 4, 13,    // 8, 3 -> 4, 3
+    13, 12, 13, 6,   // 5, 5 -> 10, 5
+    1, 11, 6, 6,  // 8, 6 -> 13, 11
+    1, 0, 4, 0,  // 7, 10 -> 3, 10
+    6, 12, 12, 12,   // 9, 8 -> 9, 11
+    12, 15, 7, 15,    // 2, 4 -> 2, 9
+    10, 7, 7, 10,  // 12, 8 -> 12, 0
+    10, 4, 0, 4,   // 10, 0 -> 1, 0
+};
+
+    
+    
+    int tailleListeBaselevel12 = sizeof(listedebaselevel12) / sizeof(listedebaselevel12[0]);
+
+    
+
+    // Liste de coordonnées résultantes
+    int *listeCoordonneeslevel12 = NULL;
+    int tailleListeCoordonneeslevel12 = 0;
+
+    // Dossier contenant les fichiers d'image
+
+    
+    extraireCoordonneesDepuisFichiers(gridPath, listedebaselevel12, tailleListeBaselevel12, &listeCoordonneeslevel12, &tailleListeCoordonneeslevel12);
+    traceLignesDepuisListe(surface, listeCoordonneeslevel12, tailleListeCoordonneeslevel12);
+    */
 }
