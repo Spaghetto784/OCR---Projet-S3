@@ -175,7 +175,7 @@ void detect_clusters(SDL_Surface *surface) {
     }
 
     // Threshold for distance between clusters
-    float distance_threshold = 20.0; // Adjust as needed
+    float distance_threshold = 20.0;
     int lastY = clusters[0].centerY;
 
     for (int i = 0; i < cluster_count; i++) {
@@ -195,30 +195,41 @@ void detect_clusters(SDL_Surface *surface) {
         // Assign a color based on classification
         Uint32 color;
         const char *folder;
+        
+        int size;
+        if (clusters[i].maxX - clusters[i].minX > clusters[i].maxY - clusters[i].minY){
+			size = clusters[i].maxX - clusters[i].minX;
+		}
+		else{
+			size = clusters[i].maxY - clusters[i].minY;
+		}
+        
+		if (size > 5 && size < 30){
+			if (is_in_grid) {
+				color = SDL_MapRGB(surface->format, 255, 0, 0); // Red for the grid
+				folder = "letterList";
+			} else {
+				color = SDL_MapRGB(surface->format, 0, 0, 255); // Blue for the list
+				folder = "letterGrid";
+			}
+			if (clusters[i].centerY - lastY >= 10) {
+				lastY = clusters[i].centerY;
+			}
 
-        if (is_in_grid) {
-            color = SDL_MapRGB(surface->format, 255, 0, 0); // Red for the grid
-            folder = "letterList";
-        } else {
-            color = SDL_MapRGB(surface->format, 0, 0, 255); // Blue for the list
-            folder = "letterGrid";
-        }
-        if (clusters[i].centerY - lastY >= 10) {
-            lastY = clusters[i].centerY;
-        }
+			// Save the cluster in the appropriate folder with separate indices
+			save_cluster(surface, clusters[i].minX, clusters[i].minY, clusters[i].maxX, clusters[i].maxY, folder, clusters[i].centerX, lastY);
 
-        // Save the cluster in the appropriate folder with separate indices
-        save_cluster(surface, clusters[i].minX, clusters[i].minY, clusters[i].maxX, clusters[i].maxY, folder, clusters[i].centerX, lastY);
-
-        // Draw a square around the cluster
-        for (int x = clusters[i].minX; x <= clusters[i].maxX; x++) {
-            if (clusters[i].minY >= 0 && clusters[i].minY < height) pixels[clusters[i].minY * width + x] = color; // Top line
-            if (clusters[i].maxY >= 0 && clusters[i].maxY < height) pixels[clusters[i].maxY * width + x] = color; // Bottom line
-        }
-        for (int y = clusters[i].minY; y <= clusters[i].maxY; y++) {
-            if (clusters[i].minX >= 0 && clusters[i].minX < width) pixels[y * width + clusters[i].minX] = color; // Left column
-            if (clusters[i].maxX >= 0 && clusters[i].maxX < width) pixels[y * width + clusters[i].maxX] = color; // Right column
-        }
+			// Draw a square around the cluster
+			for (int x = clusters[i].minX; x <= clusters[i].maxX; x++) {
+				if (clusters[i].minY >= 0 && clusters[i].minY < height) pixels[clusters[i].minY * width + x] = color; // Top line
+				if (clusters[i].maxY >= 0 && clusters[i].maxY < height) pixels[clusters[i].maxY * width + x] = color; // Bottom line
+			}
+			for (int y = clusters[i].minY; y <= clusters[i].maxY; y++) {
+				if (clusters[i].minX >= 0 && clusters[i].minX < width) pixels[y * width + clusters[i].minX] = color; // Left column
+				if (clusters[i].maxX >= 0 && clusters[i].maxX < width) pixels[y * width + clusters[i].maxX] = color; // Right column
+			}
+		}
+        
     }
     free(visited);
 }
@@ -469,8 +480,8 @@ void detect(SDL_Surface *surface) {
 
     detect_clusters(surface);
 
-    rename_files(gridPath);
-    rename_files(listPath);
+    //rename_files(gridPath);
+    //rename_files(listPath);
 
     /*
     int listedebaselevel11[] = {
