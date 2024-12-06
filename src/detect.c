@@ -22,7 +22,7 @@ typedef struct {
 typedef struct {
     int minX, minY, maxX, maxY;
     int area;
-    int centerX, centerY; // Cluster center
+    int centerX, centerY;
 } Cluster;
 
 // Calculate the distance between two points
@@ -128,16 +128,50 @@ void save_cluster(SDL_Surface *surface, int minX, int minY, int maxX, int maxY, 
     snprintf(filename, sizeof(filename), "%s/lettre_%03d_%03d.png", folder, x_index, y_index);
 
     // Save the 24x24 image
-    if (IMG_SavePNG(final_surface, filename) != 0) {
-        printf("Error saving PNG: %s\n", IMG_GetError());
-    } else {
-        printf("Cluster saved in %s\n", filename);
-    }
+    IMG_SavePNG(final_surface, filename);
 
     // Free surfaces
     SDL_FreeSurface(cluster_surface);
     SDL_FreeSurface(final_surface);
 }
+
+void sortCluster(Cluster* clusters, int* cluster_count, int min_same_centerY) {
+    int count = *cluster_count;
+
+    // Array to mark clusters to keep
+    int* keep = (int*)calloc(count, sizeof(int));
+
+    // Check each cluster against others
+    for (int i = 0; i < count; i++) {
+        int same_centerY_count = 0;
+
+        // Count how many clusters have the same centerY as cluster i
+        for (int j = 0; j < count; j++) {
+            if (i != j && clusters[i].centerY == clusters[j].centerY) {
+                same_centerY_count++;
+            }
+        }
+
+        // If there are at least 'min_same_centerY' clusters with the same centerY, mark this cluster as valid
+        if (same_centerY_count >= min_same_centerY) {
+            keep[i] = 1;
+        }
+    }
+
+    // Remove clusters not marked as valid
+    int new_count = 0;
+    for (int i = 0; i < count; i++) {
+        if (keep[i]) {
+            clusters[new_count++] = clusters[i]; // Keep valid clusters
+        }
+    }
+
+    *cluster_count = new_count; // Update the cluster count
+
+    free(keep); // Free the temporary array
+}
+
+
 
 //detect the cluster of letters
 void detect_clusters(SDL_Surface *surface) {
@@ -148,8 +182,11 @@ void detect_clusters(SDL_Surface *surface) {
     int* visited = (int*)calloc(width * height, sizeof(int));
 
 
-    Cluster clusters[1000];
+    Cluster clusters[10000];
     int cluster_count = 0;
+
+    // Variable to store the centerY of the last cluster
+    int last_centerY = -1;
 
     // Traverse the image to detect clusters
     for (int y = 0; y < height; y++) {
@@ -168,11 +205,24 @@ void detect_clusters(SDL_Surface *surface) {
                 int centerX = (minX + maxX) / 2;
                 int centerY = (minY + maxY) / 2;
 
+                // Adjust the centerY to match the last cluster if the difference is less than 5
+                if (last_centerY != -1 && abs(centerY - last_centerY) < 3) {
+                    centerY = last_centerY;
+                }
+
                 // Add this cluster to the detected clusters list
                 clusters[cluster_count++] = (Cluster){minX, minY, maxX, maxY, area, centerX, centerY};
+
+                // Update last_centerY to the current cluster's centerY
+                last_centerY = centerY;
             }
         }
     }
+
+
+    printf("%d\n", cluster_count);
+    sortCluster(clusters, &cluster_count, 3);
+    printf("%d\n", cluster_count);
 
     // Threshold for distance between clusters
     float distance_threshold = 20.0;
@@ -480,8 +530,8 @@ void detect(SDL_Surface *surface) {
 
     detect_clusters(surface);
 
-    //rename_files(gridPath);
-    //rename_files(listPath);
+    rename_files(gridPath);
+    rename_files(listPath);
 
     /*
     int listedebaselevel11[] = {
@@ -509,8 +559,8 @@ void detect(SDL_Surface *surface) {
     extractCoordinatesFromFiles(gridPath, listedebaselevel11, tailleListeBaselevel11, &listeCoordonneeslevel11, &tailleListeCoordonneeslevel11);
     traceLinesFromList(surface, listeCoordonneeslevel11, tailleListeCoordonneeslevel11);
     */
-
-   /*
+   
+   
     int listedebaselevel12[] = {
     5, 9, 5, 15,    // 3, 3 -> 3, 7
     0, 10, 4, 6,    // 4, 2 -> 7, 2
@@ -539,5 +589,5 @@ void detect(SDL_Surface *surface) {
     
     extractCoordinatesFromFiles(gridPath, listedebaselevel12, tailleListeBaselevel12, &listeCoordonneeslevel12, &tailleListeCoordonneeslevel12);
     traceLinesFromList(surface, listeCoordonneeslevel12, tailleListeCoordonneeslevel12);
-    */
+    
 }
