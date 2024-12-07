@@ -1,42 +1,110 @@
+#include "neural_net.h"
+#include "png_to_array.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h> 
 
-#include "neural_net.h"
+void train_and_save(char *model_path) {
+    NeuralNetwork nn;
+    initialize_network(&nn);
 
-int main(int argc, char *argv[])
-{
-    // Initialize the network
-    init_network();
-
-    // Train the network on the truth data
-    for (int epoch = 0; epoch < 10000; epoch++)
-    {
-        train(0, 0, 1);
-        train(0, 1, 0);
-        train(1, 0, 0);
-        train(1, 1, 1);
+    // Allouer dynamiquement les tableaux volumineux
+    double (*targets)[26] = malloc(26 * sizeof(*targets));
+    double (*inputs)[784] = malloc(2600 * sizeof(*inputs));
+    if (targets == NULL || inputs == NULL) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(EXIT_FAILURE);
     }
 
-    // Check command-line arguments
-    if (argc != 3)
-    {
-        fprintf(stderr, "Usage: %s <A (0 or 1)> <B (0 or 1)>\n", argv[0]);
+    // Initialisation des cibles
+    for (int j = 0; j < 26; j++) {
+        for (int i = 0; i < 26; i++) {
+            targets[j][i] = (j == i) ? 1 : 0;
+        }
+    }
+
+    // Chargement des entrées
+    int cur = 0;
+    int valid_samples = 0;
+
+    for (int i = 0; i < 2600; i++) {
+        char filename[40];
+        int written = snprintf(filename, sizeof(filename), "data/dataset/image_%d.png", cur);
+        if (written < 0 || written >= (int)sizeof(filename)) {
+            fprintf(stderr, "Filename creation failed or truncated: %s\n", filename);
+            cur++;
+            continue;
+        }
+
+        // Vérifier si le fichier existe
+        if (access(filename, F_OK) == -1) {
+            fprintf(stderr, "File not found: %s. Skipping.\n", filename);
+            cur++;
+            continue;
+        }
+
+        double *temp = Output_Array(filename);
+        if (temp == NULL) {
+            fprintf(stderr, "Failed to load image: %s. Skipping.\n", filename);
+            cur++;
+            continue;
+        }
+
+        for (int j = 0; j < 784; j++) {
+            inputs[valid_samples][j] = temp[j];
+        }
+        free(temp);
+
+        valid_samples++;
+        if (cur % 50 == 49) cur += 50;
+        cur++;
+    }
+
+    if (valid_samples > 0) {
+        train(&nn, inputs, targets, valid_samples);
+        save_network(model_path, &nn, 784, 256, 26);
+    } else {
+        fprintf(stderr, "No valid samples found. Training aborted.\n");
+    }
+
+    free(targets);
+    free(inputs);
+    free_network(&nn);
+}
+
+
+void predict_character(char *model_path, char *image_path) {
+    char predicted_char = predict_char(image_path, model_path);
+    if (predicted_char != '\0') {
+        printf("The predicted character is: %c\n", predicted_char);
+    } else {
+        fprintf(stderr, "Prediction failed.\n");
+    }
+}
+
+int main(int argc, char *argv[]) {
+    if (argc < 3) {
+        fprintf(stderr, "Usage: %s <mode> <model_path> [<image_path>]\n", argv[0]);
         return 1;
     }
 
-    int A = atoi(argv[1]);
-    int B = atoi(argv[2]);
+    char *mode = argv[1];
+    char *model_path = argv[2];
 
-    // Verify that A and B are either 0 or 1
-    if ((A != 0 && A != 1) || (B != 0 && B != 1))
-    {
-        fprintf(stderr, "Incorrect value: A and B must be 0 or 1.\n");
+    if (strcmp(mode, "train") == 0) {
+        train_and_save(model_path);
+        return 0; // Empêche de continuer à exécuter la prédiction
+    } else if (strcmp(mode, "predict") == 0) {
+        if (argc < 4) {
+            fprintf(stderr, "Image path is required for prediction.\n");
+            return 1;
+        }
+        char *image_path = argv[3];
+        predict_character(model_path, image_path);
+        return 0;
+    } else {
+        fprintf(stderr, "Invalid mode. Use 'train' or 'predict'.\n");
         return 1;
     }
-
-    // Display the prediction
-    float result = predict(A, B);
-    printf("Result for A = %d and B = %d: %.2f\n", A, B, result);
-
-    return 0;
 }

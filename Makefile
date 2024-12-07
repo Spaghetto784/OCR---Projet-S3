@@ -1,7 +1,7 @@
 # Makefile unifié
 
 CC = gcc
-CFLAGS = -Wall -Wextra -I/usr/include/SDL2 -Iinclude
+CFLAGS = -Wall -Wextra  -I/usr/include/SDL2 -Iinclude
 
 # Cibles pour l'OCR
 OCRB_SRCS = src/mainBw.c src/load_image.c src/image_processing.c # Enlève src/preprocessor.c si non utilisé
@@ -30,7 +30,7 @@ DET_OBJS = $(DET_SRCS:.c=.o)
 DET_TARGET = bin/image_Det
 
 # Cibles pour le module Neural
-NEURAL_SRCS = src/neural_net.o src/main_neural_net.o
+NEURAL_SRCS = src/neural_net.o src/main_neural_net.o src/png_to_array.o 
 NEURAL_TARGET = bin/neural_test
 
 # Cibles pour le module Solver
@@ -104,7 +104,7 @@ $(DET_TARGET): $(DET_OBJS)
 neural: $(NEURAL_TARGET)
 
 $(NEURAL_TARGET): $(NEURAL_SRCS)
-	$(CC) $(CFLAGS) -o $(NEURAL_TARGET) $(NEURAL_SRCS) -lm
+	$(CC) $(CFLAGS) -o $(NEURAL_TARGET) $(NEURAL_SRCS)  -lSDL2 -lSDL2_image -lm
 
 # Cible pour le module Solver
 solver: $(SOLVER_TARGET)

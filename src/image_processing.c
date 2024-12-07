@@ -389,6 +389,3 @@ SDL_Surface* invert_colors(SDL_Surface* surface) {
 
     return invertedSurface;
 }
-
-
-

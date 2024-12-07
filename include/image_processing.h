@@ -21,6 +21,6 @@ Uint8 calculate_threshold(SDL_Surface* surface);
 
 
 SDL_Surface* rotate_image(SDL_Surface* surface, int angle);
-
+double* load_image_as_binary_vector(const char* filepath, int width, int height);
 
 #endif // IMAGE_PROCESSING_H
