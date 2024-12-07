@@ -515,13 +515,151 @@ void extractCoordinatesFromFiles(const char *directory, int *baseList, int baseL
     closedir(dir);
 }
 
+// Function to read the contents of a file into a dynamically allocated array of strings
+char** read_file_lines(const char* path, int* line_count) {
+    FILE* file = fopen(path, "r");
+    if (!file) {
+        perror("Error opening file");
+        return NULL;
+    }
 
-// Fonction de détection avec grille/liste séparée
+    char** lines = NULL;
+    size_t size = 0;
+    char buffer[256];
+
+    while (fgets(buffer, sizeof(buffer), file)) {
+        // Remove the trailing newline character
+        buffer[strcspn(buffer, "\n")] = '\0';
+
+        // Reallocate space for the lines array
+        lines = realloc(lines, (size + 1) * sizeof(char*));
+        lines[size] = strdup(buffer);
+        size++;
+    }
+
+    fclose(file);
+    *line_count = size;
+    return lines;
+}
+
+// Function to execute the solver binary and retrieve coordinates
+char* run_solver(const char* grid_file, const char* word) {
+    char command[512];
+    snprintf(command, sizeof(command), "./bin/solver %s %s", grid_file, word);
+
+    FILE* pipe = popen(command, "r");
+    if (!pipe) {
+        perror("Error executing solver");
+        return NULL;
+    }
+
+    char* result = NULL;
+    char buffer[256];
+    if (fgets(buffer, sizeof(buffer), pipe)) {
+        // Remove the trailing newline character
+        buffer[strcspn(buffer, "\n")] = '\0';
+        result = strdup(buffer);
+    }
+
+    pclose(pipe);
+    return result;
+}
+
+// Function to get the list of coordinates
+int* getListFromFile(char* pathList, char* pathGrid, int* size) {
+    int* res = NULL;
+    int res_size = 0;
+
+    // Read the grid file and the word list file
+    int word_count;
+    char** words = read_file_lines(pathList, &word_count);
+    if (!words) {
+        printf("Error reading word list file.\n");
+        return NULL;
+    }
+
+    // Iterate over each word and call the solver
+    for (int i = 0; i < word_count; i++) {
+        char* coordinates = run_solver(pathGrid, words[i]);
+        if (coordinates) {
+            printf("Coordinates for word '%s': %s\n", words[i], coordinates);
+
+            // Parse the coordinates (e.g., "2,0)(11,0") into integer pairs
+            char* token = strtok(coordinates, "(),");
+            while (token) {
+                // Reallocate space for the result array
+                res = realloc(res, (res_size + 2) * sizeof(int));
+
+                // Add x-coordinate first
+                int x = atoi(token);
+                token = strtok(NULL, "(),");
+
+                if (token) {
+                    // Add y-coordinate next
+                    int y = atoi(token);
+
+                    // Store coordinates in y,x order
+                    res[res_size++] = y; // Add y-coordinate
+                    res[res_size++] = x; // Add x-coordinate
+
+                    token = strtok(NULL, "(),");
+                }
+            }
+
+            free(coordinates); // Free the string allocated by run_solver
+        } else {
+            printf("No coordinates found for word '%s'.\n", words[i]);
+        }
+    }
+
+    *size = res_size;
+
+    // Free the word list
+    for (int i = 0; i < word_count; i++) {
+        free(words[i]);
+    }
+    free(words);
+
+    return res; // Return the list of coordinates
+}
+
+
+void printList(int* coordinates, int res_size) {
+    if (!coordinates || res_size == 0) {
+        printf("The list is empty.\n");
+        return;
+    }
+
+    printf("Coordinates List:\n");
+    for (int i = 0; i < res_size; i += 2) {
+        printf("(%d, %d)\n", coordinates[i], coordinates[i + 1]);
+    }
+}
+
+void resolve(SDL_Surface *surface){
+    int tailleListeBase;
+    int* listedebase = getListFromFile("level11List", "level11Grid", &tailleListeBase);
+
+
+    // Liste de coordonnées résultantes
+    int *listeCoordonnee = NULL;
+    int tailleListeCoordonnees = 0;
+    const char *gridPath = "letterGrid";
+
+    // Extraire les coordonnées depuis les fichiers
+    extractCoordinatesFromFiles(gridPath, listedebase, tailleListeBase, &listeCoordonnee, &tailleListeCoordonnees);
+
+    // Tracer les lignes
+    traceLinesFromList(surface, listeCoordonnee, tailleListeCoordonnees);
+}
+
+
 void detect(SDL_Surface *surface) {
     if (surface->format->BytesPerPixel != 3 && surface->format->BytesPerPixel != 4) {
         printf("Unsupported image format for grayscale conversion.\n");
         return;
     }
+            
     const char *gridPath = "letterGrid";
     const char *listPath = "letterList";
 
@@ -533,61 +671,5 @@ void detect(SDL_Surface *surface) {
     rename_files(gridPath);
     rename_files(listPath);
 
-    /*
-    int listedebaselevel11[] = {
-    0, 2, 0, 11,   // 0, 2 -> 0, 11
-    2, 4, 2, 9,    // 2, 4 -> 2, 9
-    3, 3, 3, 7,    // 3, 3 -> 3, 7
-    4, 2, 7, 2,    // 4, 2 -> 7, 2
-    8, 3, 4, 3,    // 8, 3 -> 4, 3
-    5, 5, 10, 5,   // 5, 5 -> 10, 5
-    8, 6, 13, 11,  // 8, 6 -> 13, 11
-    7, 10, 3, 10,  // 7, 10 -> 3, 10
-    9, 8, 9, 11,   // 9, 8 -> 9, 11
-    2, 4, 2, 9,    // 2, 4 -> 2, 9
-    12, 8, 12, 0,  // 12, 8 -> 12, 0
-    10, 0, 1, 0,   // 10, 0 -> 1, 0
-    11, 8, 11, 0   // 11, 8 -> 11, 0
-};
-    int tailleListeBaselevel11 = sizeof(listedebaselevel11) / sizeof(listedebaselevel11[0]);
-
-    // Liste de coordonnées résultantes
-    int *listeCoordonneeslevel11 = NULL;
-    int tailleListeCoordonneeslevel11 = 0;
-
-    // Extraire les coordonnées depuis les fichiers
-    extractCoordinatesFromFiles(gridPath, listedebaselevel11, tailleListeBaselevel11, &listeCoordonneeslevel11, &tailleListeCoordonneeslevel11);
-    traceLinesFromList(surface, listeCoordonneeslevel11, tailleListeCoordonneeslevel11);
-    */
-   
-   
-    int listedebaselevel12[] = {
-    5, 9, 5, 15,    // 3, 3 -> 3, 7
-    0, 10, 4, 6,    // 4, 2 -> 7, 2
-    1, 16, 4, 13,    // 8, 3 -> 4, 3
-    13, 12, 13, 6,   // 5, 5 -> 10, 5
-    1, 11, 6, 6,  // 8, 6 -> 13, 11
-    1, 0, 4, 0,  // 7, 10 -> 3, 10
-    6, 12, 12, 12,   // 9, 8 -> 9, 11
-    12, 15, 7, 15,    // 2, 4 -> 2, 9
-    10, 7, 7, 10,  // 12, 8 -> 12, 0
-    10, 4, 0, 4,   // 10, 0 -> 1, 0
-};
-
-    
-    
-    int tailleListeBaselevel12 = sizeof(listedebaselevel12) / sizeof(listedebaselevel12[0]);
-
-    
-
-    // Liste de coordonnées résultantes
-    int *listeCoordonneeslevel12 = NULL;
-    int tailleListeCoordonneeslevel12 = 0;
-
-    // Dossier contenant les fichiers d'image
-
-    
-    extractCoordinatesFromFiles(gridPath, listedebaselevel12, tailleListeBaselevel12, &listeCoordonneeslevel12, &tailleListeCoordonneeslevel12);
-    traceLinesFromList(surface, listeCoordonneeslevel12, tailleListeCoordonneeslevel12);
-    
+    resolve(surface);
 }
