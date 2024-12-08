@@ -1,281 +1,348 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <math.h>
-#include <time.h> // Required for srand(time(0))
-#include "neural_net.h"
-#include <err.h>
-#include "png_to_array.h"
+#include <stdlib.h>
+#include <stdio.h> 
+#include <SDL.h>
+#include <SDL_image.h>
+#include <dirent.h>  
+#include <sys/types.h> 
 
-// Activation function (sigmoid)
-double sigmoid(double x) {
-    return 1.0 / (1.0 + exp(-x));
+
+
+const char test[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+
+#define NombreDeInput 576  
+#define NombreDeNoeudCache 80 
+#define NombreDeSortis 52
+#define entrainement 618
+
+SDL_Surface* Createur_surface(char *a) {
+    SDL_Surface *surface = IMG_Load(a);
+    if (surface == NULL) {
+        printf("Problème avec l'image %s: %s\n", a, SDL_GetError());
+        return NULL;
+    }
+    return surface;
 }
 
-// Derivative of activation function
-double sigmoid_derivative(double x) {
-    return x * (1.0 - x);
+int max_index(double *array, int size) {
+    int max_idx = 0;
+    for (int i = 1; i < size; i++) {
+        if (array[i] > array[max_idx]) {
+            max_idx = i;
+        }
+    }
+    return max_idx;
+}
+
+void softmax(double *output, int size) {
+    double sum = 0.0;
+    for (int i = 0; i < size; i++) {
+        output[i] = exp(output[i]);
+        sum += output[i];
+    }
+    for (int i = 0; i < size; i++) {
+        output[i] /= sum;
+    }
+}
+
+double sigmoid(double x){
+    return 1.0 / (1.0 + exp(-x));  // Fonction sigmoid
+}
+
+double derive(double x){
+    return x * (1.0 - x);  // Dérivée de sigmoid, où x = sigmoid(z)
+}
+
+void melange(int *tableau, size_t n){ 
+    for (size_t i = 0; i < n-1; i++) {
+        size_t j = i + rand() / (RAND_MAX / (n - i) + 1 );
+        int t  = tableau[j];
+        tableau[j] = tableau[i];
+        tableau[i] = t;
+    }
+} 
+
+double poiddd(){
+    return ((double)rand()) / ((double)RAND_MAX) - 0.5; // Valeurs entre -0.5 et 0.5
 }
 
 
-// Initialization of the neural network with random values 
-void initialize_network(NeuralNetwork *nn) 
+char get_letter_from_one_hot(double *one_hot, int size) {
+    for (int i = 0; i < size; i++) {
+        if (one_hot[i] == 1.0) {
+            return test[i];
+        }
+    }
+    return '?';
+}
+
+int get_letter_index(char letter) {
+    for (size_t i = 0; i < sizeof(test) - 1; i++) { 
+        if (test[i] == letter) {
+            return i; 
+        }
+    }
+    return -1;
+}
+
+
+// Fonction pour redimensionner une image à 24x24 pixels
+SDL_Surface* resize_image(SDL_Surface* original, int width, int height) {
+    SDL_Surface* resized = SDL_CreateRGBSurface(0, width, height, original->format->BitsPerPixel,
+                                               original->format->Rmask,
+                                               original->format->Gmask,
+                                               original->format->Bmask,
+                                               original->format->Amask);
+    if (resized == NULL) {
+        printf("Erreur lors de la création de la surface redimensionnée : %s\n", SDL_GetError());
+        return NULL;
+    }
+
+    // Effectuer le redimensionnement
+    if (SDL_BlitScaled(original, NULL, resized, NULL) != 0) {
+        printf("Erreur lors du redimensionnement de l'image : %s\n", SDL_GetError());
+        SDL_FreeSurface(resized);
+        return NULL;
+    }
+
+    return resized;
+}
+
+
+void process_training_files_combined(const char *directory, double TrainingInputs[entrainement][NombreDeInput], double TrainingOutputs[entrainement][NombreDeSortis]) {
+    struct dirent *entry;
+    DIR *dir = opendir(directory);
+
+    if (dir == NULL) {
+        printf("Erreur : Impossible d'ouvrir le répertoire %s\n", directory);
+        return;
+    }
+
+    int file_count = 0;
+    while ((entry = readdir(dir)) != NULL && file_count < entrainement) {
+        if (entry->d_name[0] == '.') {
+            continue;
+        }
+        char path[256];
+        snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
+        SDL_Surface *image = IMG_Load(path);
+        if (image == NULL) {
+            printf("Erreur lors du chargement de l'image %s : %s\n", path, SDL_GetError());
+            continue;
+        }
+
+        // Redimensionner l'image à 24x24 pixels si nécessaire
+        if (image->w != 24 || image->h != 24) {
+            printf("Redimensionnement de l'image %s de %dx%d en 24x24 pixels.\n", path, image->w, image->h);
+            SDL_Surface *resized_image = resize_image(image, 24, 24);
+            SDL_FreeSurface(image); // Libérer la surface originale
+            if (resized_image == NULL) {
+                printf("Erreur lors du redimensionnement de l'image %s.\n", path);
+                continue;
+            }
+            image = resized_image; // Utiliser l'image redimensionnée
+        }
+
+        Uint32 *pixel_data = (Uint32 *)image->pixels;
+        for (int y = 0; y < 24; y++) {
+            for (int x = 0; x < 24; x++) {
+                Uint32 pixel = pixel_data[y * image->w + x];
+                Uint8 r, g, b;
+                SDL_GetRGB(pixel, image->format, &r, &g, &b);
+                double grayscale_value = (0.3 * r + 0.59 * g + 0.11 * b) / 255.0;
+                TrainingInputs[file_count][y * 24 + x] = grayscale_value > 0.5 ? 1.0 : 0.0; 
+            }
+        }
+
+        // Traitement des sorties
+        char letter = entry->d_name[0];
+        int index = get_letter_index(letter);
+        if (index != -1) {
+            TrainingOutputs[file_count][index] = 1.0;
+            printf("Fichier : %s, Lettre : %c, Index : %d\n", entry->d_name, letter, index);
+            file_count++;
+        } else {
+            printf("Erreur : Lettre '%c' non trouvée pour le fichier %s\n", letter, entry->d_name);
+        }
+
+        printf("Image traitée : %s\n", path);
+        SDL_FreeSurface(image);
+    }
+
+    closedir(dir);
+}
+void save_parameters(const char *filename, 
+                     double HiddenWeights[NombreDeInput][NombreDeNoeudCache],
+                     double OutputWeights[NombreDeNoeudCache][NombreDeSortis],
+                     double HiddenLayerBias[NombreDeNoeudCache],
+                     double OutputLayerBias[NombreDeSortis]) {
+    FILE *file = fopen(filename, "wb");
+    if (file == NULL) {
+        printf("Erreur : Impossible d'ouvrir le fichier %s pour l'écriture\n", filename);
+        return;
+    }
+
+    // Sauvegarder HiddenWeights
+    fwrite(HiddenWeights, sizeof(double), NombreDeInput * NombreDeNoeudCache, file);
+
+    // Sauvegarder OutputWeights
+    fwrite(OutputWeights, sizeof(double), NombreDeNoeudCache * NombreDeSortis, file);
+
+    // Sauvegarder HiddenLayerBias
+    fwrite(HiddenLayerBias, sizeof(double), NombreDeNoeudCache, file);
+
+    // Sauvegarder OutputLayerBias
+    fwrite(OutputLayerBias, sizeof(double), NombreDeSortis, file);
+
+    fclose(file);
+    printf("Les paramètres ont été sauvegardés dans %s\n", filename);
+}
+
+int main()
 {
-    srand(time(0));
+    const double pa = 0.1;  
+
+    double HiddenLayer[NombreDeNoeudCache]; 
+    double OutputLayer[NombreDeSortis]; // Liste des noeuds de sorties
+
+    double HiddenLayerBias[NombreDeNoeudCache]; // Biais pour la couche cachée
+    double OutputLayerBias[NombreDeSortis]; // Biais pour la sortie
+
+    double HiddenWeights[NombreDeInput][NombreDeNoeudCache]; 
+    double OutputWeights[NombreDeNoeudCache][NombreDeSortis]; 
+
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        printf("Erreur lors de l'initialisation de SDL : %s\n", SDL_GetError());
+        return 1;
+    }
+    if ((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) != IMG_INIT_PNG) {
+        printf("Erreur lors de l'initialisation de SDL_image : %s\n", IMG_GetError());
+        SDL_Quit();
+        return 1;
+    }
+
+    double TrainingInputs[entrainement][NombreDeInput];
+    double TrainingOutputs[entrainement][NombreDeSortis];
+
+
+    process_training_files_combined("data/dataset", TrainingInputs, TrainingOutputs);
+
+
+
+    // Initialisation des poids
+    for (int i = 0; i < NombreDeInput; i++){
+        for (int j = 0; j < NombreDeNoeudCache; j++){
+            HiddenWeights[i][j] = poiddd(); // Poids entre l'entrée et les noeuds cachés
+        }
+    }
     
-    nn->weights_input_hidden = (double **)malloc(INPUT_SIZE * sizeof(double *));
-    nn->weights_hidden_output = (double **)malloc(HIDDEN_SIZE * sizeof(double *));
-    nn->bias_hidden = (double *)malloc(HIDDEN_SIZE * sizeof(double));
-    nn->bias_output = (double *)malloc(OUTPUT_SIZE * sizeof(double));
-    nn->hidden_output = (double *)malloc(HIDDEN_SIZE * sizeof(double));
-    nn->output = (double *)malloc(OUTPUT_SIZE * sizeof(double));
-
-    for (int i = 0; i < INPUT_SIZE; i++) {
-	nn->weights_input_hidden[i] = (double *)malloc(HIDDEN_SIZE * sizeof(double));
-        for (int j = 0; j < HIDDEN_SIZE; j++) {
-            nn->weights_input_hidden[i][j] = ((double) rand() / RAND_MAX) - 0.5;
+    for (int i = 0; i < NombreDeNoeudCache; i++){
+        for (int j = 0; j < NombreDeSortis; j++){
+            OutputWeights[i][j] = poiddd(); // Poids entre les noeuds cachés et les sorties
         }
     }
-    for (int i = 0; i < HIDDEN_SIZE; i++) {
-	nn->weights_hidden_output[i] = (double *)malloc(OUTPUT_SIZE * sizeof(double));
-        nn->bias_hidden[i] = ((double) rand() / RAND_MAX) - 0.5;
-        for (int j = 0; j < OUTPUT_SIZE; j++) {
-            nn->weights_hidden_output[i][j] = ((double) rand() / RAND_MAX) - 0.5;
-        }
-    }
-    for (int i = 0; i < OUTPUT_SIZE; i++) {
-        nn->bias_output[i] = ((double) rand() / RAND_MAX) - 0.5;
-    }
-}
-
-// Front propagation
-void forward(NeuralNetwork *nn, double inputs[INPUT_SIZE]) {
-    // Calcul of hidden neurons bias
-    for (int i = 0; i < HIDDEN_SIZE; i++) {
-        double sum = nn->bias_hidden[i];
-        for (int j = 0; j < INPUT_SIZE; j++) {
-            sum += inputs[j] * nn->weights_input_hidden[j][i];
-        }
-        nn->hidden_output[i] = sigmoid(sum);
-    }
-    // Calcul of output neurons bias 
-    for (int i = 0; i < OUTPUT_SIZE; i++) {
-        double sum = nn->bias_output[i];
-        for (int j = 0; j < HIDDEN_SIZE; j++) {
-            sum += nn->hidden_output[j] * nn->weights_hidden_output[j][i];
-        }
-        nn->output[i] = sigmoid(sum);
-    }
-}
-
-// Back propagation
-void backward(NeuralNetwork *nn, double inputs[INPUT_SIZE], double target[OUTPUT_SIZE]) {
-    double output_error[OUTPUT_SIZE];
-    double output_delta[OUTPUT_SIZE];
-
-    // Error rate and delta of output layer
-    for (int i = 0; i < OUTPUT_SIZE; i++) {
-        output_error[i] = target[i] - nn->output[i];
-        output_delta[i] = output_error[i] * sigmoid_derivative(nn->output[i]);
+    
+    for (int i = 0; i < NombreDeSortis; i++){
+        OutputLayerBias[i] = poiddd();
     }
 
-    // Error rate and delta of hidden layer
-    double hidden_error[HIDDEN_SIZE];
-    double hidden_delta[HIDDEN_SIZE];
-    for (int i = 0; i < HIDDEN_SIZE; i++) {
-        hidden_error[i] = 0.0;
-        for (int j = 0; j < OUTPUT_SIZE; j++) {
-            hidden_error[i] += output_delta[j] * nn->weights_hidden_output[i][j];
-        }
-        hidden_delta[i] = hidden_error[i] * sigmoid_derivative(nn->hidden_output[i]);
+    for (int i = 0; i < NombreDeNoeudCache; i++) {
+        HiddenLayerBias[i] = poiddd();
     }
 
-    // Updating bias and weights from hidden to output layer
-    for (int i = 0; i < HIDDEN_SIZE; i++) {
-        for (int j = 0; j < OUTPUT_SIZE; j++) {
-            nn->weights_hidden_output[i][j] += nn->hidden_output[i] * output_delta[j] * LEARNING_RATE;
-        }
-    }
-    for (int i = 0; i < OUTPUT_SIZE; i++) {
-        nn->bias_output[i] += output_delta[i] * LEARNING_RATE;
+    int trainingSetOrder[entrainement];
+    for (int i = 0; i < entrainement; i++) {
+        trainingSetOrder[i] = i;
     }
 
-    // Updating bias and weights from input to hidden layer
-    for (int i = 0; i < INPUT_SIZE; i++) {
-        for (int j = 0; j < HIDDEN_SIZE; j++) {
-            nn->weights_input_hidden[i][j] += inputs[i] * hidden_delta[j] * LEARNING_RATE;
-        }
-    }
-    for (int i = 0; i < HIDDEN_SIZE; i++) {
-        nn->bias_hidden[i] += hidden_delta[i] * LEARNING_RATE;
-    }
-}
-void save_network(const char *path, NeuralNetwork *nn, int input_size, int hidden_size, int output_size) {
-    FILE *file = fopen(path, "wb");
-    if (!file) {
-        fprintf(stderr, "Failed to open file for writing: %s\n", path);
-        return;
-    }
+    int numberOfEpochs = 100; // Nombre d'époques
 
-    // Écriture des métadonnées
-    if (fwrite(&input_size, sizeof(int), 1, file) != 1 ||
-        fwrite(&hidden_size, sizeof(int), 1, file) != 1 ||
-        fwrite(&output_size, sizeof(int), 1, file) != 1) {
-        fprintf(stderr, "Failed to write network metadata.\n");
-        fclose(file);
-        return;
-    }
+    // Entraînement du réseau de neurones
+    for (int epoch = 0; epoch < numberOfEpochs; epoch++)
+    {
+        melange(trainingSetOrder, entrainement);
+        for (int x = 0; x < entrainement; x++)
+        {
+            int i = trainingSetOrder[x];
 
-    // Écriture des poids et des biais
-    if ((size_t)fwrite(nn->weights_input_hidden, sizeof(double), input_size * hidden_size, file) != (size_t)(input_size * hidden_size) ||
-        (size_t)fwrite(nn->weights_hidden_output, sizeof(double), hidden_size * output_size, file) != (size_t)(hidden_size * output_size) ||
-        (size_t)fwrite(nn->bias_hidden, sizeof(double), hidden_size, file) != (size_t)hidden_size ||
-        (size_t)fwrite(nn->bias_output, sizeof(double), output_size, file) != (size_t)output_size) {
-        fprintf(stderr, "Failed to write network weights or biases.\n");
-        fclose(file);
-        return;
-    }
+            // Réinitialiser la couche de sortie
+            for (int j = 0; j < NombreDeSortis; j++) {
+                OutputLayer[j] = 0.0;
+            }
 
-    fclose(file);
-    printf("Network saved successfully to %s\n", path);
-}
+            // Calcul de l'activation de la couche cachée
+            for (int j = 0; j < NombreDeNoeudCache; j++)
+            {
+                double activation = HiddenLayerBias[j];
+                for (int k = 0; k < NombreDeInput; k++)
+                {
+                    activation += TrainingInputs[i][k] * HiddenWeights[k][j];
+                }
+                HiddenLayer[j] = sigmoid(activation);
+            }
 
+            // Calcul de l'activation de la couche de sortie
+            for (int j = 0; j < NombreDeSortis; j++) {
+                double activation = OutputLayerBias[j];
+                for (int k = 0; k < NombreDeNoeudCache; k++) {
+                    activation += HiddenLayer[k] * OutputWeights[k][j];
+                }
+                OutputLayer[j] = activation; // Pas de sigmoïde ici, softmax sera appliqué
+            }
+            softmax(OutputLayer, NombreDeSortis);
 
-int load_network(const char *path, NeuralNetwork *nn, int input_size, int hidden_size, int output_size) {
-    FILE *file = fopen(path, "rb");
-    if (!file) {
-        fprintf(stderr, "Error: Unable to open file %s\n", path);
-        return 0; // Échec
-    }
+            printf("Input: %g %g  Predicted Letter: %c   Expected Letter: %c\n\n",
+                TrainingInputs[i][0],
+                TrainingInputs[i][1],
+                test[max_index(OutputLayer, NombreDeSortis)], 
+                get_letter_from_one_hot(TrainingOutputs[i], NombreDeSortis));
 
-    // Charger les dimensions
-    if (fread(&input_size, sizeof(int), 1, file) != 1 ||
-        fread(&hidden_size, sizeof(int), 1, file) != 1 ||
-        fread(&output_size, sizeof(int), 1, file) != 1) {
-        fclose(file);
-        fprintf(stderr, "Error: Unable to read network dimensions\n");
-        return 0; // Échec
-    }
+            // Calcul des deltas pour la sortie
+            double deltaOutput[NombreDeSortis];
+            for (int j = 0; j < NombreDeSortis; j++)
+            {
+                double error = (TrainingOutputs[i][j] - OutputLayer[j]);
+                deltaOutput[j] = error;
+            }
 
-    // Charger les poids et les biais
-    if ((size_t)fread(nn->weights_input_hidden, sizeof(double), input_size * hidden_size, file) != (size_t)(input_size * hidden_size) ||
-        (size_t)fread(nn->weights_hidden_output, sizeof(double), hidden_size * output_size, file) != (size_t)(hidden_size * output_size) ||
-        (size_t)fread(nn->bias_hidden, sizeof(double), hidden_size, file) != (size_t)hidden_size ||
-        (size_t)fread(nn->bias_output, sizeof(double), output_size, file) != (size_t)output_size) {
-        fclose(file);
-        fprintf(stderr, "Error: Failed to read network weights or biases\n");
-        return 0; // Échec
-    }
+            // Calcul des deltas pour la couche cachée
+            double deltaHidden[NombreDeNoeudCache];
+            for (int j = 0; j < NombreDeNoeudCache; j++)
+            {
+                double error = 0.0;
+                for (int k = 0; k < NombreDeSortis; k++)
+                {
+                    error += deltaOutput[k] * OutputWeights[j][k];
+                }
+                deltaHidden[j] = error * derive(HiddenLayer[j]);
+            }
 
-    fclose(file);
-    return 1; // Succès
-}
+            for (int j = 0; j < NombreDeSortis; j++)
+            {
+                OutputLayerBias[j] += deltaOutput[j] * pa;
+                for (int k = 0; k < NombreDeNoeudCache; k++)
+                {
+                    OutputWeights[k][j] += HiddenLayer[k] * deltaOutput[j] * pa;
+                }
+            }
 
-
-void free_network(NeuralNetwork *nn) {
-    for (int i = 0; i < INPUT_SIZE; i++) {
-        free(nn->weights_input_hidden[i]);
-    }
-    free(nn->weights_input_hidden);
-
-    for (int i = 0; i < HIDDEN_SIZE; i++) {
-        free(nn->weights_hidden_output[i]);
-    }
-    free(nn->weights_hidden_output);
-
-    free(nn->bias_hidden);
-    free(nn->bias_output);
-    free(nn->hidden_output);
-    free(nn->output);
-}
-
-// Neural Network Training
-void train(NeuralNetwork *nn, double inputs[][INPUT_SIZE], double targets[][OUTPUT_SIZE], int samples) {
-    for (int epoch = 0; epoch < EPOCHS; epoch++) {
-        double total_loss = 0.0;
-
-        for (int i = 0; i < samples; i++) {
-            forward(nn, inputs[i]);
-            backward(nn, inputs[i], targets[i / 50]);
-
-            // Calcul de la perte
-            for (int j = 0; j < OUTPUT_SIZE; j++) {
-                double error = targets[i / 50][j] - nn->output[j];
-                total_loss += error * error;
+            // Mise à jour des poids et biais de la couche cachée
+            for (int j = 0; j < NombreDeNoeudCache; j++)
+            {
+                HiddenLayerBias[j] += deltaHidden[j] * pa;
+                for (int k = 0; k < NombreDeInput; k++)
+                {
+                    HiddenWeights[k][j] += TrainingInputs[i][k] * deltaHidden[j] * pa;
+                }
             }
         }
-
-        total_loss /= samples; // Moyenne de la perte
-        printf("Epoch %d, Loss = %.6f\n", epoch + 1, total_loss);
-
-        // Critère d'arrêt
-        if (total_loss < LOSS_THRESHOLD) {
-            printf("Training converged after %d epochs.\n", epoch + 1);
-            break;
-        }
     }
+
+    save_parameters("neural_network_parameters.bin", HiddenWeights, OutputWeights, HiddenLayerBias, OutputLayerBias);
+    IMG_Quit();
+    SDL_Quit();
+    return 0;
 }
-
-// Neural Network Testing
-void test(NeuralNetwork *nn, double inputs[][INPUT_SIZE], double targets[][OUTPUT_SIZE], int samples) {
-    (void)targets; // Marque `targets` comme inutilisé si vous n'en avez pas besoin
-
-    for (int i = 0; i < samples; i++) {
-        forward(nn, inputs[i]);
-        int predicted = 0;
-        double max_value = nn->output[0];
-        for (int j = 1; j < OUTPUT_SIZE; j++) {
-            if (nn->output[j] > max_value) {
-                max_value = nn->output[j];
-                predicted = j;
-            }
-        }
-
-        printf("Prediction = %c\n", predicted + 'A');
-    }
-}
-
-char predict_char(char *image_path, char *data) {
-    // Load the trained neural network
-    NeuralNetwork nn;
-    initialize_network(&nn);
-    load_network(data, &nn, INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE);
-    
-
-    // Convert the image to an input array
-    double *temp = Output_Array(image_path);
-    if (!temp) {
-        fprintf(stderr, "Error: Unable to process image %s\n", image_path);
-        free_network(&nn);
-        return '\0';
-    }
-
-    double input[INPUT_SIZE];
-    for (int i = 0; i < INPUT_SIZE; i++) {
-        input[i] = temp[i];
-    }
-    free(temp);
-
-    // Perform forward propagation
-    forward(&nn, input);
-
-    // Determine the predicted character
-    int predicted_class = 0;
-    double max_value = nn.output[0];
-    for (int i = 1; i < OUTPUT_SIZE; i++) {
-        if (nn.output[i] > max_value) {
-            max_value = nn.output[i];
-            predicted_class = i;
-        }
-    }
-
-    // Free the network
-    free_network(&nn);
-
-    // Convert the predicted class to a character
-    char predicted_char = 'A' + predicted_class;
-    printf("Prediction for image %s: %c\n", image_path, predicted_char);
-    return predicted_char;
-}
-
 
 
