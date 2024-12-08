@@ -630,7 +630,7 @@ void printList(int* coordinates, int res_size) {
 
 void resolve(SDL_Surface *surface){
     int tailleListeBase;
-    int* listedebase = getListFromFile("level11List", "level11Grid", &tailleListeBase);
+    int* listedebase = getListFromFile("level12List", "level12Grid", &tailleListeBase);
 
 
     // Liste de coordonnées résultantes

@@ -124,8 +124,11 @@ void process_training_files_combined(const char *directory, double TrainingInput
         if (entry->d_name[0] == '.') {
             continue;
         }
-        char path[256];
+
+        // Augmenter la taille du buffer pour éviter la troncature
+        char path[512];  // Augmenter la taille à 512
         snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
+
         SDL_Surface *image = IMG_Load(path);
         if (image == NULL) {
             printf("Erreur lors du chargement de l'image %s : %s\n", path, SDL_GetError());
@@ -172,6 +175,7 @@ void process_training_files_combined(const char *directory, double TrainingInput
 
     closedir(dir);
 }
+
 void save_parameters(const char *filename, 
                      double HiddenWeights[NombreDeInput][NombreDeNoeudCache],
                      double OutputWeights[NombreDeNoeudCache][NombreDeSortis],
@@ -256,7 +260,7 @@ int main()
         trainingSetOrder[i] = i;
     }
 
-    int numberOfEpochs = 100; // Nombre d'époques
+    int numberOfEpochs = 50; // Nombre d'époques
 
     // Entraînement du réseau de neurones
     for (int epoch = 0; epoch < numberOfEpochs; epoch++)
