@@ -28,6 +28,11 @@ Before compiling the project, ensure you have the necessary dependencies install
   sudo apt-get install libsdl1.2-dev libsdl-image1.2-dev 
   ```
 
+### GTK 3.0
+- **Ubuntu/Debian**:
+  ```
+  sudo apt-get install libgtk-4-dev
+  ```
 ## Installation
 
 To compile the project, run the following command in the terminal at the root of the repository:
