@@ -55,27 +55,15 @@ This compiles and runs tests for the neural network.
 To run the main OCR application with Grayscale treatment: 
 
 ```bash
-make ocrg
-```
-
-To run the main OCR application with Black and White treatment: 
-
-```bash
-make ocrb
-```
-
-This generates the image_loader executable, the file to use to test the image loading with treatments.
-The file will be called image_loaderB for black and white treatment and image_loaderG for grayscale treatment. 
-
-
-To run the main OCR application with detection treatment:
-
-```bash
 make det
 ```
 
 This will generate the image_Det executable, the file to use to test the image loading with detection treatments.
 
+```bash
+./bin/ocr_gui
+```
+This will run the application on GTK and you will be able to use everything above in the application.
 
 ## License
 
