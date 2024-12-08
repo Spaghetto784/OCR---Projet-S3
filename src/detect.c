@@ -220,9 +220,7 @@ void detect_clusters(SDL_Surface *surface) {
     }
 
 
-    printf("%d\n", cluster_count);
     sortCluster(clusters, &cluster_count, 3);
-    printf("%d\n", cluster_count);
 
     // Threshold for distance between clusters
     float distance_threshold = 20.0;
@@ -322,7 +320,6 @@ void rename_files(const char *directory) {
                 files[file_count].x = x;
                 files[file_count].y = y;
                 file_count++;
-                printf("DEBUG: Added file: %s (x=%d, y=%d)\n", entry->d_name, x, y);
             }
         }
     }
@@ -335,7 +332,6 @@ void rename_files(const char *directory) {
         return;
     }
 
-    printf("DEBUG: Total files collected: %d\n", file_count);
 
     // Sort files by y-coordinate first, then x-coordinate
     qsort(files, file_count, sizeof(LetterFile), compareFile);
@@ -363,11 +359,7 @@ void rename_files(const char *directory) {
         snprintf(new_path, sizeof(new_path), "%s/%s", directory, new_name);
 
         // Rename the file
-        if (rename(old_path, new_path) != 0) {
-            perror("rename");
-        } else {
-            printf("Renamed %s to %s\n", old_path, new_name);
-        }
+        rename(old_path, new_path);
 
         // Increment the file position in the row
         file_in_row++;
