@@ -1,16 +1,17 @@
 CC = gcc
-CFLAGS = -Wall -Wextra  -I/usr/include/SDL2 -Iinclude
+CFLAGS = -Wall -Wextra  -I/usr/include/SDL2 -Iinclude `pkg-config --cflags gtk+-3.0`
+LDFLAGS = `pkg-config --libs gtk+-3.0` -lSDL2 -lSDL2_image -lm
 
 # Cibles pour l'OCR
-OCRB_SRCS = src/mainBw.c src/load_image.c src/image_processing.c # Enlève src/preprocessor.c si non utilisé
+OCRB_SRCS = src/mainBw.c src/load_image.c src/image_processing.c
 OCRB_OBJS = $(OCRB_SRCS:.c=.o)
 OCRB_TARGET = bin/image_loaderB
 
-OCRG_SRCS = src/mainGray.c src/load_image.c src/image_processing.c # Enlève src/preprocessor.c si non utilisé
+OCRG_SRCS = src/mainGray.c src/load_image.c src/image_processing.c
 OCRG_OBJS = $(OCRG_SRCS:.c=.o)
 OCRG_TARGET = bin/image_loaderG
 
-OCRContrast_SRCS = src/mainContrast.c src/load_image.c src/image_processing.c # Enlève src/preprocessor.c si non utilisé
+OCRContrast_SRCS = src/mainContrast.c src/load_image.c src/image_processing.c
 OCRContrast_OBJS = $(OCRContrast_SRCS:.c=.o)
 OCRContrast_TARGET = bin/image_loaderContrasted
 
@@ -35,10 +36,15 @@ NEURAL_TARGET = bin/neural_test
 SOLVER_SRCS = src/solver.c src/main_solver.c
 SOLVER_TARGET = bin/solver
 
+# Cible pour l'interface graphique (mainGUI)
+GUY_SRCS = src/mainGUY.c src/load_image.c src/image_processing.c src/detect.c
+GUY_OBJS = $(GUY_SRCS:.c=.o)
+GUY_TARGET = bin/ocr_gui
+
 .PHONY: all ocr neural solver clean
 
 # Cible par défaut
-all: ocrb ocrg ocrc det neural solver
+all: ocrb ocrg ocrc det neural solver gui
 
 # Cible pour l'OCR
 ocrb: $(OCRB_TARGET)
@@ -112,7 +118,15 @@ neural: $(NEURAL_TARGET)
 $(NEURAL_TARGET): $(NEURAL_SRCS)
 	$(CC) $(CFLAGS) -o $(NEURAL_TARGET) $(NEURAL_SRCS)  -lSDL2 -lSDL2_image -lm
 
+# Cible pour l'interface graphique
+gui: $(GUY_TARGET)
 
+$(GUY_TARGET): $(GUY_OBJS)
+	mkdir -p bin
+	$(CC) -o $(GUY_TARGET) $(GUY_OBJS) $(LDFLAGS)
+
+%.o: %.c
+	$(CC) -c $< -o $@ $(CFLAGS)
 
 # Cible de nettoyage
 clean:

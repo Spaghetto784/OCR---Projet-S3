@@ -628,10 +628,9 @@ void printList(int* coordinates, int res_size) {
     }
 }
 
-void resolve(SDL_Surface *surface){
+SDL_Surface* resolve(SDL_Surface *surface) {
     int tailleListeBase;
     int* listedebase = getListFromFile("level12List", "level12Grid", &tailleListeBase);
-
 
     // Liste de coordonnées résultantes
     int *listeCoordonnee = NULL;
@@ -641,9 +640,25 @@ void resolve(SDL_Surface *surface){
     // Extraire les coordonnées depuis les fichiers
     extractCoordinatesFromFiles(gridPath, listedebase, tailleListeBase, &listeCoordonnee, &tailleListeCoordonnees);
 
+    // Cloner la surface pour éviter de modifier l'original
+    SDL_Surface *result_surface = SDL_ConvertSurface(surface, surface->format, 0);
+    if (!result_surface) 
+    {
+        free(listedebase);
+        free(listeCoordonnee);
+        return NULL;
+    }
+
     // Tracer les lignes
-    traceLinesFromList(surface, listeCoordonnee, tailleListeCoordonnees);
+    traceLinesFromList(result_surface, listeCoordonnee, tailleListeCoordonnees);
+
+    // Libérer les données temporaires
+    free(listedebase);
+    free(listeCoordonnee);
+
+    return result_surface;
 }
+
 
 
 void detect(SDL_Surface *surface) {
@@ -663,5 +678,8 @@ void detect(SDL_Surface *surface) {
     rename_files(gridPath);
     rename_files(listPath);
 
+    /*
+
     resolve(surface);
+    */
 }
